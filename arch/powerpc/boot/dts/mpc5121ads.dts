@@ -151,7 +151,7 @@
 		// PSC3 serial port A aka ttyPSC0
 		serial@11300 {
 			device_type = "serial";
-			compatible = "fsl,mpc5121-psc-uart";
+			compatible = "fsl,mpc5121-psc-uart", "fsl,mpc5121-psc";
 			// Logical port assignment needed until driver
 			// learns to use aliases
 			port-number = <0>;
@@ -164,7 +164,7 @@
 		// PSC4 serial port B aka ttyPSC1
 		serial@11400 {
 			device_type = "serial";
-			compatible = "fsl,mpc5121-psc-uart";
+			compatible = "fsl,mpc5121-psc-uart", "fsl,mpc5121-psc";
 			// Logical port assignment needed until driver
 			// learns to use aliases
 			port-number = <1>;
