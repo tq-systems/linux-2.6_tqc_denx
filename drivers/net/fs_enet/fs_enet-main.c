@@ -1432,6 +1432,31 @@ static int fs_enet_remove(struct device *dev)
 	return fs_cleanup_instance(dev_get_drvdata(dev));
 }
 
+#ifdef CONFIG_PM
+static int fs_enet_suspend(struct device *dev, pm_message_t state)
+{
+	struct net_device *ndev = dev_get_drvdata(dev);
+
+	if (netif_running(ndev))
+		fs_enet_close(ndev);
+
+	return 0;
+}
+
+static int fs_enet_resume(struct device *dev)
+{
+	struct net_device *ndev = dev_get_drvdata(dev);
+
+	if (netif_running(ndev))
+		fs_enet_open(ndev);
+
+	return 0;
+}
+#else
+#define fs_enet_suspend	NULL
+#define fs_enet_resume	NULL
+#endif
+
 static struct device_driver fs_enet_fec_driver = {
 #ifndef CONFIG_FS_ENET_MPC5121_FEC
 	.name	  	= "fsl-cpm-fec",
@@ -1441,10 +1466,8 @@ static struct device_driver fs_enet_fec_driver = {
 	.bus		= &platform_bus_type,
 	.probe		= fs_enet_probe,
 	.remove		= fs_enet_remove,
-#ifdef CONFIG_PM
-/*	.suspend	= fs_enet_suspend,	TODO */
-/*	.resume		= fs_enet_resume,	TODO */
-#endif
+	.suspend	= fs_enet_suspend,
+	.resume		= fs_enet_resume,
 };
 
 static struct device_driver fs_enet_scc_driver = {
@@ -1452,10 +1475,8 @@ static struct device_driver fs_enet_scc_driver = {
 	.bus		= &platform_bus_type,
 	.probe		= fs_enet_probe,
 	.remove		= fs_enet_remove,
-#ifdef CONFIG_PM
-/*	.suspend	= fs_enet_suspend,	TODO */
-/*	.resume		= fs_enet_resume,	TODO */
-#endif
+	.suspend	= fs_enet_suspend,
+	.resume		= fs_enet_resume,
 };
 
 static struct device_driver fs_enet_fcc_driver = {
@@ -1463,10 +1484,8 @@ static struct device_driver fs_enet_fcc_driver = {
 	.bus		= &platform_bus_type,
 	.probe		= fs_enet_probe,
 	.remove		= fs_enet_remove,
-#ifdef CONFIG_PM
-/*	.suspend	= fs_enet_suspend,	TODO */
-/*	.resume		= fs_enet_resume,	TODO */
-#endif
+	.suspend	= fs_enet_suspend,
+	.resume		= fs_enet_resume,
 };
 
 static int __init fs_init(void)
