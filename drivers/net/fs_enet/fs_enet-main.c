@@ -69,6 +69,7 @@ MODULE_PARM_DESC(fs_enet_debug,
 static void fs_enet_netpoll(struct net_device *dev);
 #endif
 
+#define ENET_RX_ALIGN 16
 static void fs_set_multicast_list(struct net_device *dev)
 {
 	struct fs_enet_private *fep = netdev_priv(dev);
@@ -592,6 +593,33 @@ void fs_cleanup_bds(struct net_device *dev)
 
 /**********************************************************************************/
 
+#define TX_ALIGN_WORKAROUND
+#ifdef TX_ALIGN_WORKAROUND
+static struct sk_buff *aligntxskb(struct net_device *dev, struct sk_buff *skb)
+{
+	struct sk_buff *skbn;
+	skbn = dev_alloc_skb(ENET_RX_FRSIZE+0x20);
+	if (skbn)
+		skb_align(skbn, 0x20);
+
+	if (!skbn) { 
+	    printk(KERN_WARNING DRV_MODULE_NAME
+		    ": %s Memory squeeze, dropping tx packet.\n",
+		    dev->name);
+		dev_kfree_skb_any(skb);
+		return NULL;
+	}
+
+	skb_copy_from_linear_data(skb, skbn->data, skb->len);
+	skb_put(skbn, skb->len);
+	dev_kfree_skb_any(skb);
+	return skbn;
+}
+#else
+#define aligntxskb(skb) skb
+#endif
+
+
 static int fs_enet_start_xmit(struct sk_buff *skb, struct net_device *dev)
 {
 	struct fs_enet_private *fep = netdev_priv(dev);
@@ -600,6 +628,7 @@ static int fs_enet_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	u16 sc;
 	unsigned long flags;
 
+	skb = aligntxskb(dev, skb);
 	spin_lock_irqsave(&fep->tx_lock, flags);
 
 	/*
