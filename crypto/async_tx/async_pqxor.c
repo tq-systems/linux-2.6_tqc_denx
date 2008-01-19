@@ -205,7 +205,7 @@ EXPORT_SYMBOL_GPL(async_pqxor);
  * async_xor_zero_sum - attempt a PQ parities check with a dma engine.
  * @pdest: P-parity destination to check
  * @qdest: Q-parity destination to check
- * @src_list: array of source pages.
+ * @src_list: array of source pages; the 1st pointer is qdest, the 2nd - pdest.
  * @scoef_list: coefficients to use in GF-multiplications
  * @offset: offset in pages to start transaction
  * @src_cnt: number of source pages
@@ -226,17 +226,17 @@ async_pqxor_zero_sum(struct page *pdest, struct page *qdest,
 	dma_async_tx_callback callback, void *callback_param)
 {
 	struct dma_chan *chan = async_tx_find_channel(depend_tx,
-		DMA_PQ_ZERO_SUM, src_list, src_cnt, len);
+		DMA_PQ_ZERO_SUM, &src_list[2], src_cnt-2, len);
 	struct dma_device *device = chan ? chan->device : NULL;
-	struct page *dest;
 	int int_en = callback ? 1 : 0;
 	struct dma_async_tx_descriptor *tx = device ?
 		device->device_prep_dma_pqzero_sum(chan,
-			src_cnt, (pdest && qdest) ? 2 : 1, len,
+			src_cnt-2, pdest ? 2 : 1, len,
 			presult, qresult, int_en) : NULL;
 	int i;
 
 	BUG_ON(src_cnt <= 1);
+	BUG_ON(!qdest || qdest != src_list[0] || pdest != src_list[1]);
 
 	if (tx) {
 		dma_addr_t dma_addr;
@@ -248,11 +248,10 @@ async_pqxor_zero_sum(struct page *pdest, struct page *qdest,
 		/* Set location of first parity to check;
 		 * first try Q
 		 */
-		dest = qdest ? qdest : pdest;
-		dma_addr = dma_map_page(device->dev, dest, offset, len, dir);
+		dma_addr = dma_map_page(device->dev, qdest, offset, len, dir);
 		tx->tx_set_dest(dma_addr, tx, 0);
 
-		if (qdest && pdest) {
+		if (pdest) {
 			/* Both parities has to be checked */
 			dma_addr = dma_map_page(device->dev, pdest, offset,
 						len, dir);
@@ -263,6 +262,8 @@ async_pqxor_zero_sum(struct page *pdest, struct page *qdest,
 			DMA_NONE : DMA_TO_DEVICE;
 
 		/* Set location of srcs and coefs */
+		src_cnt -= 2;
+		src_list = &src_list[2];
 		for (i = 0; i < src_cnt; i++) {
 			dma_addr = dma_map_page(device->dev, src_list[i],
 				offset, len, dir);
@@ -280,8 +281,8 @@ async_pqxor_zero_sum(struct page *pdest, struct page *qdest,
 		lflags &= ~ASYNC_TX_ACK;
 		spin_lock(&spare_lock);
 		do_sync_pqxor(spare_pages[0], spare_pages[1],
-			src_list, offset,
-			src_cnt, len, lflags,
+			&src_list[2], offset,
+			src_cnt-2, len, lflags,
 			depend_tx, NULL, NULL);
 
 		if (presult && pdest)
