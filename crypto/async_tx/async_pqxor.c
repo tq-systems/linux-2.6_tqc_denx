@@ -43,47 +43,61 @@ struct page *spare_pages[2];
 /**
  * do_async_pqxor - asynchronously calculate P and/or Q
  */
-static void
-do_async_pqxor(struct dma_async_tx_descriptor *tx, struct dma_device *device,
+static struct dma_async_tx_descriptor *
+do_async_pqxor(struct dma_device *device,
 	struct dma_chan *chan,
 	struct page *pdest, struct page *qdest,
 	struct page **src_list, unsigned char *scoef_list,
 	unsigned int offset, unsigned int src_cnt, size_t len,
 	enum async_tx_flags flags, struct dma_async_tx_descriptor *depend_tx,
-	dma_async_tx_callback callback, void *callback_param)
+	dma_async_tx_callback cb_fn, void *cb_param)
 {
 	struct page *dest;
-	dma_addr_t dma_addr;
-	int i;
+	dma_addr_t dma_dest[2];
+	dma_addr_t *dma_src = (dma_addr_t *) src_list;
+	unsigned char *scf = qdest ? scoef_list : NULL;
+	struct dma_async_tx_descriptor *tx;
+	int i, dst_cnt = 0, zdst = flags & ASYNC_TX_XOR_ZERO_DST ? 1 : 0;
 
 	/*  One parity (P or Q) calculation is initiated always;
 	 * first always try Q
 	 */
 	dest = qdest ? qdest : pdest;
-	dma_addr = dma_map_page(device->dev, dest, offset, len, DMA_FROM_DEVICE);
-	tx->tx_set_dest(dma_addr, tx, 0);
+	dma_dest[dst_cnt++] = dma_map_page(device->dev, dest, offset, len,
+					    DMA_FROM_DEVICE);
 
 	/* Switch to the next destination */
 	if (qdest && pdest) {
 		/* Both destinations are set, thus here we deal with P */
-		dma_addr = dma_map_page(device->dev, pdest, offset, len, DMA_FROM_DEVICE);
-		tx->tx_set_dest(dma_addr, tx, 1);
+		dma_dest[dst_cnt++] = dma_map_page(device->dev, pdest, offset,
+						len, DMA_FROM_DEVICE);
 	}
 
-	for (i = 0; i < src_cnt; i++) {
-		dma_addr = dma_map_page(device->dev, src_list[i],
+	for (i = 0; i < src_cnt; i++)
+		dma_src[i] = dma_map_page(device->dev, src_list[i],
 			offset, len, DMA_TO_DEVICE);
-		tx->tx_set_src(dma_addr, tx, i);
-		if (!qdest)
-			/* P-only calculation */
-			tx->tx_set_src_mult(1, tx, i);
-		else
-			/* PQ or Q-only calculation */
-			tx->tx_set_src_mult(scoef_list[i], tx, i);
+
+	/* Since we have clobbered the src_list we are committed
+	 * to doing this asynchronously.  Drivers force forward progress
+	 * in case they can not provide a descriptor
+	 */
+	tx = device->device_prep_dma_pqxor(chan, dma_dest, dst_cnt, dma_src, src_cnt,
+					   scf, len, zdst, cb_fn != NULL);
+	if (!tx) {
+		if (depend_tx)
+			dma_wait_for_async_tx(depend_tx);
+
+		while (!tx)
+			tx = device->device_prep_dma_pqxor(chan,
+							   dma_dest, dst_cnt,
+							   dma_src, src_cnt,
+							   scf, len, zdst,
+							   cb_fn != NULL);
 	}
 
-	async_tx_submit(chan, tx, flags, depend_tx, callback,
-		callback_param);
+	async_tx_submit(chan, tx, flags, depend_tx, cb_fn, cb_param);
+
+	return tx;
 }
 
 /**
@@ -143,35 +157,15 @@ async_pqxor(struct page *pdest, struct page *qdest,
 		src_list, src_cnt, len);
 	struct dma_device *device = chan ? chan->device : NULL;
 	struct dma_async_tx_descriptor *tx = NULL;
-	int int_en;
 
 	if (!device && (flags & ASYNC_TX_ASYNC_ONLY))
 		return NULL;
 
 	if (device) { /* run the xor asynchronously */
-		int_en = callback ? 1 : 0;
-
-		tx = device->device_prep_dma_pqxor(chan,
-			src_list, src_cnt,
-			(pdest && qdest) ? 2 : 1,
-			len,
-			flags & ASYNC_TX_XOR_ZERO_DST ? 1 : 0,
-			int_en);
-
-		if (tx) {
-			do_async_pqxor(tx, device, chan,
-				pdest, qdest,
-				src_list, scoef_list,
-				offset, src_cnt, len,
-				flags, depend_tx, callback,
-				callback_param);
-		}  else /* fall through */ {
-			if (flags & ASYNC_TX_ASYNC_ONLY)
-				return NULL;
-			goto qxor_sync;
-		}
+		tx = do_async_pqxor(device, chan, pdest, qdest, src_list,
+			       scoef_list, offset, src_cnt, len, flags,
+			       depend_tx, callback,callback_param);
 	} else { /* run the pqxor synchronously */
-qxor_sync:
 		/* may do synchronous PQ only when both destinations exsists */
 		if (!pdest || !qdest)
 			return NULL;
@@ -197,11 +191,11 @@ qxor_sync:
 EXPORT_SYMBOL_GPL(async_pqxor);
 
 /**
- * async_xor_zero_sum - attempt a PQ parities check with a dma engine.
+ * async_pqxor_zero_sum - attempt a PQ parities check with a dma engine.
  * @pdest: P-parity destination to check
  * @qdest: Q-parity destination to check
  * @src_list: array of source pages; the 1st pointer is qdest, the 2nd - pdest.
- * @scoef_list: coefficients to use in GF-multiplications
+ * @scf: coefficients to use in GF-multiplications
  * @offset: offset in pages to start transaction
  * @src_cnt: number of source pages
  * @len: length in bytes
@@ -209,59 +203,50 @@ EXPORT_SYMBOL_GPL(async_pqxor);
  * @qresult: 0 if Q parity is OK else non-zero
  * @flags: ASYNC_TX_ASSUME_COHERENT, ASYNC_TX_ACK, ASYNC_TX_DEP_ACK
  * @depend_tx: depends on the result of this transaction.
- * @callback: function to call when the xor completes
- * @callback_param: parameter to pass to the callback routine
+ * @cb_fn: function to call when the xor completes
+ * @cb_param: parameter to pass to the callback routine
  */
 struct dma_async_tx_descriptor *
 async_pqxor_zero_sum(struct page *pdest, struct page *qdest,
-	struct page **src_list, unsigned char *scoef_list,
+	struct page **src_list, unsigned char *scf,
 	unsigned int offset, int src_cnt, size_t len,
 	u32 *presult, u32 *qresult, enum async_tx_flags flags,
 	struct dma_async_tx_descriptor *depend_tx,
-	dma_async_tx_callback callback, void *callback_param)
+	dma_async_tx_callback cb_fn, void *cb_param)
 {
 	struct dma_chan *chan = async_tx_find_channel(depend_tx,
 		DMA_PQ_ZERO_SUM, &src_list[2], src_cnt-2, len);
 	struct dma_device *device = chan ? chan->device : NULL;
-	int int_en = callback ? 1 : 0;
-	struct dma_async_tx_descriptor *tx = device ?
-		device->device_prep_dma_pqzero_sum(chan,
-			src_cnt-2, pdest ? 2 : 1, len,
-			presult, qresult, int_en) : NULL;
-	int i;
+	struct dma_async_tx_descriptor *tx = NULL;
 
 	BUG_ON(src_cnt <= 1);
 	BUG_ON(!qdest || qdest != src_list[0] || pdest != src_list[1]);
 
 	if (tx) {
-		dma_addr_t dma_addr;
+		dma_addr_t *dma_src = (dma_addr_t *)src_list;
+		int i;
 
-		/* Set location of first parity to check;
-		 * first try Q
-		 */
-		dma_addr = dma_map_page(device->dev, qdest, offset, len,
-					DMA_TO_DEVICE);
-		tx->tx_set_dest(dma_addr, tx, 0);
+		for (i = 0; i < src_cnt; i++)
+			dma_src[i] = dma_map_page(device->dev, src_list[i],
+						  offset, len, DMA_TO_DEVICE);
 
-		if (pdest) {
-			/* Both parities has to be checked */
-			dma_addr = dma_map_page(device->dev, pdest, offset,
-						len, DMA_TO_DEVICE);
-			tx->tx_set_dest(dma_addr, tx, 1);
+		tx = device->device_prep_dma_pqzero_sum(chan, dma_src, src_cnt,
+							scf, len,
+							presult, qresult,
+							cb_fn != NULL);
+
+		if (!tx) {
+			if (depend_tx)
+				dma_wait_for_async_tx(depend_tx);
+
+			while (!tx)
+				tx = device->device_prep_dma_pqzero_sum(chan,
+						dma_src, src_cnt, scf, len,
+						presult, qresult,
+						cb_fn != NULL);
 		}
 
-		/* Set location of srcs and coefs */
-		src_cnt -= 2;
-		src_list = &src_list[2];
-		for (i = 0; i < src_cnt; i++) {
-			dma_addr = dma_map_page(device->dev, src_list[i],
-						offset, len, DMA_TO_DEVICE);
-			tx->tx_set_src(dma_addr, tx, i);
-			tx->tx_set_src_mult(scoef_list[i], tx, i);
-		}
-
-		async_tx_submit(chan, tx, flags, depend_tx, callback,
-			callback_param);
+		async_tx_submit(chan, tx, flags, depend_tx, cb_fn, cb_param);
 	} else {
 		unsigned long lflags = flags;
 
