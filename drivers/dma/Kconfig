@@ -36,6 +36,7 @@ config AMCC_PPC440SPE_ADMA
 	tristate "AMCC PPC440SPe ADMA support"
 	depends on DMA_ENGINE && (440SPE || 440SP)
 	select ASYNC_CORE
+	select ARCH_HAS_ASYNC_TX_FIND_CHANNEL
 	default y
 	---help---
 	  Enable support for the AMCC PPC440SPe RAID engines.
@@ -47,5 +48,8 @@ config INTEL_IOP_ADMA
         default m
         ---help---
           Enable support for the Intel(R) IOP Series RAID engines.
+
+config ARCH_HAS_ASYNC_TX_FIND_CHANNEL
+	bool
 
 endmenu
