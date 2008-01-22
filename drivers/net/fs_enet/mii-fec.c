@@ -38,6 +38,7 @@
 
 #ifdef CONFIG_PPC_CPM_NEW_BINDING
 #include <asm/of_platform.h>
+#include <asm/time.h>
 #endif
 
 #include "fs_enet.h"
@@ -71,7 +72,7 @@ static int fs_mii_fec_init(struct fec_info* fec, struct fs_mii_fec_platform_info
 {
 	struct resource *r;
 	fec_t __iomem *fecp;
-	char* name = "fsl-cpm-fec";
+	char *name = "fsl-cpm-fec";
 
 	/* we need fec in order to be useful */
 	struct platform_device *fec_pdev =
@@ -260,9 +261,16 @@ static int fs_enet_mdio_remove(struct of_device *ofdev)
 }
 
 static struct of_device_id fs_enet_mdio_fec_match[] = {
+#ifdef CONFIG_FS_ENET_FEC
 	{
 		.compatible = "fsl,pq1-fec-mdio",
 	},
+#endif
+#ifdef CONFIG_FS_ENET_MPC5121_FEC
+	{
+		.compatible = "fsl,mpc5121-fec-mdio",
+	},
+#endif
 	{},
 };
 

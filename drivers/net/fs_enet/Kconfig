@@ -1,8 +1,16 @@
 config FS_ENET
        tristate "Freescale Ethernet Driver"
-       depends on CPM1 || CPM2
+       depends on CPM1 || CPM2 || FS_ENET_MPC5121_FEC
        select MII
        select PHYLIB
+
+config FS_ENET_MPC5121_FEC
+	bool "Freescale MPC512x FEC driver"
+	depends on PPC_MPC512x
+	select FS_ENET
+	select FS_ENET_HAS_FEC
+	select PPC_CPM_NEW_BINDING
+	default n
 
 config FS_ENET_HAS_SCC
 	bool "Chip has an SCC usable for ethernet"
@@ -16,13 +24,15 @@ config FS_ENET_HAS_FCC
 
 config FS_ENET_HAS_FEC
 	bool "Chip has an FEC usable for ethernet"
-	depends on FS_ENET && CPM1
+	depends on FS_ENET && (CPM1 || FS_ENET_MPC5121_FEC)
 	select FS_ENET_MDIO_FEC
 	default y
 
+
 config FS_ENET_MDIO_FEC
 	tristate "MDIO driver for FEC"
-	depends on FS_ENET && CPM1
+	depends on FS_ENET && (CPM1 || FS_ENET_MPC5121_FEC)
+
 
 config FS_ENET_MDIO_FCC
 	tristate "MDIO driver for FCC"

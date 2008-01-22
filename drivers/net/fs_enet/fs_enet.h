@@ -9,11 +9,17 @@
 #include <linux/dma-mapping.h>
 
 #include <linux/fs_enet_pd.h>
+#ifndef CONFIG_FS_ENET_MPC5121_FEC
 #include <asm/fs_pd.h>
+#else
+#include "fec_mpc5121.h"
+#endif
 
 #ifdef CONFIG_CPM1
 #include <asm/commproc.h>
+#endif
 
+#if defined(CONFIG_CPM1) || defined(CONFIG_FS_ENET_MPC5121_FEC)
 struct fec_info {
 	fec_t __iomem *fecp;
 	u32 mii_speed;
@@ -170,10 +176,10 @@ void fs_enet_platform_cleanup(void);
 #define __cbd_in16(addr)	__raw_readw(addr)
 #else
 /* for others play it safe */
-#define __cbd_out32(addr, x)	out_be32(addr, x)
-#define __cbd_out16(addr, x)	out_be16(addr, x)
-#define __cbd_in32(addr)	in_be32(addr)
-#define __cbd_in16(addr)	in_be16(addr)
+#define __cbd_out32(addr, x)	out_be32((volatile void __iomem *)addr, x)
+#define __cbd_out16(addr, x)	out_be16((volatile void __iomem *)addr, x)
+#define __cbd_in32(addr)	in_be32((volatile void __iomem *)addr)
+#define __cbd_in16(addr)	in_be16((volatile void __iomem *)addr)
 #endif
 
 /* write */

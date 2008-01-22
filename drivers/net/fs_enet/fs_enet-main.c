@@ -1147,6 +1147,7 @@ static int fs_cleanup_instance(struct net_device *ndev)
 
 /**************************************************************************************/
 
+#ifndef CONFIG_FS_ENET_MPC5121_FEC
 /* handy pointer to the immap */
 void __iomem *fs_enet_immap = NULL;
 
@@ -1168,6 +1169,10 @@ static void cleanup_immap(void)
 	iounmap(fs_enet_immap);
 #endif
 }
+#else
+#define setup_immap() 0
+#define cleanup_immap() do {} while (0)
+#endif
 
 /**************************************************************************************/
 
@@ -1359,10 +1364,17 @@ static struct of_device_id fs_enet_match[] = {
 	},
 #endif
 #ifdef CONFIG_FS_ENET_HAS_FEC
+#ifndef CONFIG_FS_ENET_MPC5121_FEC
 	{
 		.compatible = "fsl,pq1-fec-enet",
 		.data = (void *)&fs_fec_ops,
 	},
+#else
+	{
+		.compatible = "fsl,mpc5121-fec",
+		.data = (void *)&fs_fec_ops,
+	},
+#endif
 #endif
 	{}
 };
@@ -1421,7 +1433,11 @@ static int fs_enet_remove(struct device *dev)
 }
 
 static struct device_driver fs_enet_fec_driver = {
+#ifndef CONFIG_FS_ENET_MPC5121_FEC
 	.name	  	= "fsl-cpm-fec",
+#else
+	.name	  	= "fsl-mpc5121-fec",
+#endif
 	.bus		= &platform_bus_type,
 	.probe		= fs_enet_probe,
 	.remove		= fs_enet_remove,

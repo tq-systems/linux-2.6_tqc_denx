@@ -42,6 +42,9 @@
 #include <asm/mpc8xx.h>
 #include <asm/commproc.h>
 #endif
+#ifdef CONFIG_FS_ENET_MPC5121_FEC
+#include "fec_mpc5121.h"
+#endif
 
 #ifdef CONFIG_PPC_CPM_NEW_BINDING
 #include <asm/of_device.h>
@@ -306,7 +309,9 @@ static void restart(struct net_device *dev)
 	 * Set maximum receive buffer size.
 	 */
 	FW(fecp, r_buff_size, PKT_MAXBLR_SIZE);
+#ifndef CONFIG_FS_ENET_MPC5121_FEC
 	FW(fecp, r_hash, PKT_MAXBUF_SIZE);
+#endif
 
 	/* get physical address */
 	rx_bd_base_phys = fep->ring_mem_addr;
@@ -320,10 +325,17 @@ static void restart(struct net_device *dev)
 
 	fs_init_bds(dev);
 
+#ifndef CONFIG_FS_ENET_MPC5121_FEC
 	/*
 	 * Enable big endian and don't care about SDMA FC.
 	 */
 	FW(fecp, fun_code, 0x78000000);
+#else
+	/*
+	 * Set DATA_BO and DESC_BO and leave the rest unchanged
+	 */
+	FS(fecp, dma_control, 0xc0000000);
+#endif
 
 	/*
 	 * Set MII speed.
@@ -334,10 +346,12 @@ static void restart(struct net_device *dev)
 	 * Clear any outstanding interrupt.
 	 */
 	FW(fecp, ievent, 0xffc0);
+#ifndef CONFIG_FS_ENET_MPC5121_FEC
 #ifndef CONFIG_PPC_MERGE
 	FW(fecp, ivec, (fep->interrupt / 2) << 29);
 #else
 	FW(fecp, ivec, (virq_to_hw(fep->interrupt) / 2) << 29);
+#endif
 #endif
 
 	/*
@@ -368,9 +382,13 @@ static void restart(struct net_device *dev)
 		out_be32(&immap->im_cpm.cp_cptr, cptr);
 	}
 #endif
-
-
+#ifdef CONFIG_FS_ENET_MPC5121_FEC
+	FW(fecp, r_cntrl, PKT_MAXBUF_SIZE<<16);	/* max frame size */
+	FS(fecp, r_cntrl, FEC_RCNTRL_MII_MODE); /* MII enable */
+#else
 	FW(fecp, r_cntrl, FEC_RCNTRL_MII_MODE);	/* MII enable */
+#endif
+
 	/*
 	 * adjust to duplex mode
 	 */
