@@ -1766,6 +1766,16 @@ config FB_MBX_DEBUG
 
          If unsure, say N.
 
+config FB_FSL_DIU
+	tristate "Freescale MPC8610/MPC5121 DIU framebuffer support"
+	depends on FB && (MPC5121_ADS || MPC8610_HPCD)
+	select FB_CFB_FILLRECT
+	select FB_CFB_COPYAREA
+	select FB_CFB_IMAGEBLIT
+	select PPC_LIB_RHEAP
+	---help---
+	  Framebuffer driver for the MPC8610/MPC5121 chip from Freescale
+
 config FB_W100
 	tristate "W100 frame buffer support"
 	depends on FB && PXA_SHARPSL

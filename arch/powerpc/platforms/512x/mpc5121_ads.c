@@ -23,6 +23,91 @@
 #include <asm/prom.h>
 #include <asm/time.h>
 
+#include <linux/bootmem.h>
+#include <asm/rheap.h>
+
+#ifdef CONFIG_FB_FSL_DIU
+
+static rh_block_t diu_rh_block[16];
+static rh_info_t diu_rh_info;
+
+static unsigned long diu_size = 1280 * 1024 * 4; /* One 1280x1024 buffer */
+static void *diu_mem;
+
+static void __init preallocate_diu_videomemory(void)
+{
+	printk(KERN_INFO "%s: diu_size=%lu\n", __FUNCTION__, diu_size);
+
+	diu_mem = __alloc_bootmem(diu_size, 8, 0);
+	if (!diu_mem) {
+		printk(KERN_ERR "fsl-diu: cannot allocate %lu bytes\n",
+			diu_size);
+		return;
+	}
+
+	printk(KERN_INFO "%s: diu_mem=%p\n", __FUNCTION__, diu_mem);
+
+	rh_init(&diu_rh_info, 4096, ARRAY_SIZE(diu_rh_block), diu_rh_block);
+	rh_attach_region(&diu_rh_info, (unsigned long) diu_mem, diu_size);
+}
+
+void *fsl_diu_alloc(unsigned long size, dma_addr_t *phys)
+{
+	 void *virt;
+
+	 printk(KERN_DEBUG "%s: size=%lu\n", __FUNCTION__, size);
+	 if (!diu_mem) {
+		printk(KERN_INFO "%s: no diu_mem\n", __FUNCTION__);
+		return NULL;
+	 }
+
+	 virt = (void *) rh_alloc(&diu_rh_info, size, "DIU");
+	 if (virt)
+		*phys = virt_to_bus(virt);
+
+	 printk(KERN_DEBUG "%s:%u rh virt=%p phys=%x\n",
+			 __FUNCTION__, __LINE__, virt, *phys);
+
+	 return virt;
+}
+EXPORT_SYMBOL(fsl_diu_alloc);
+
+void fsl_diu_free(void *p, unsigned long size)
+{
+	printk(KERN_DEBUG "%s: p=%p size=%lu\n", __FUNCTION__, p, size);
+
+	if (!p)
+		return;
+
+	if ((p >= diu_mem) && (p < (diu_mem + diu_size))) {
+		printk(KERN_DEBUG "%s:%u rh\n", __FUNCTION__, __LINE__);
+		rh_free(&diu_rh_info, (unsigned long) p);
+	} else {
+		printk(KERN_DEBUG "%s:%u dma\n", __FUNCTION__, __LINE__);
+		dma_free_coherent(0, size, p, 0);
+	}
+}
+EXPORT_SYMBOL(fsl_diu_free);
+
+static int __init early_parse_diufb(char *p)
+{
+	if (!p)
+		return 1;
+
+	diu_size = _ALIGN_UP(memparse(p, &p), 8);
+
+	printk(KERN_INFO "%s: diu_size=%lu\n", __FUNCTION__, diu_size);
+
+	return 0;
+}
+early_param("diufb", early_parse_diufb);
+
+#else
+
+#define preallocate_diu_videomemory() do { } while (0)
+
+#endif
+
 /**
  * 	mpc512x_find_ips_freq - Find the IPS bus frequency for a device
  * 	@node:	device node
@@ -51,6 +136,13 @@ mpc512x_find_ips_freq(struct device_node *node)
 	return p_ips_freq ? *p_ips_freq : 0;
 }
 EXPORT_SYMBOL(mpc512x_find_ips_freq);
+
+static void __init mpc5121_ads_setup_arch(void)
+{
+	preallocate_diu_videomemory();
+
+	printk(KERN_INFO "MPC5121 ADS board from Freescale Semiconductor\n");
+}
 
 static struct of_device_id __initdata of_bus_ids[] = {
 	{ .name = "soc", },
@@ -97,6 +189,7 @@ static int __init mpc5121_ads_probe(void)
 define_machine(mpc5121_ads) {
 	.name			= "MPC5121 ADS",
 	.probe			= mpc5121_ads_probe,
+	.setup_arch		= mpc5121_ads_setup_arch,
 	.init			= mpc5121_ads_declare_of_platform_devices,
 	.init_IRQ		= mpc5121_ads_init_IRQ,
 	.get_irq		= ipic_get_irq,
