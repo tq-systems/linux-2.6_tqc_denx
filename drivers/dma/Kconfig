@@ -4,7 +4,7 @@
 
 menuconfig DMADEVICES
 	bool "DMA Engine support"
-	depends on (PCI && X86) || ARCH_IOP32X || ARCH_IOP33X || ARCH_IOP13XX
+	depends on (PCI && X86) || ARCH_IOP32X || ARCH_IOP33X || ARCH_IOP13XX || PPC_MPC512x
 	help
 	  DMA engines can do asynchronous data transfers without
 	  involving the host CPU.  Currently, this framework can be
@@ -35,6 +35,14 @@ config INTEL_IOP_ADMA
 	select DMA_ENGINE
 	help
 	  Enable support for the Intel(R) IOP Series RAID engines.
+
+config FSL_MPC5121_DMA
+        tristate "Freescale MPC5121 DMA engine support"
+        depends on PPC_MPC512x
+	select DMA_ENGINE
+        default m
+        ---help---
+          Enable support for the Freescale(R) MPC5121 DMA engine.
 
 config DMA_ENGINE
 	bool
