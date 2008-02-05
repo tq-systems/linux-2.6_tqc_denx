@@ -137,11 +137,37 @@ mpc512x_find_ips_freq(struct device_node *node)
 }
 EXPORT_SYMBOL(mpc512x_find_ips_freq);
 
+static void __init mpc5121_iopad_setup(void)
+{
+	/*
+	 * io pad config that should be done in u-boot but it isn't
+	 */
+	struct device_node *np;
+	u32 __iomem *ioctrl;
+
+	np = of_find_compatible_node(NULL, NULL, "fsl,mpc5121-immr");
+
+	/*
+	 * 0xa000 is offset to IO Control
+	 * 0x270 is offset to PSC5_0
+	 */
+	ioctrl = of_iomap(np, 0) + 0xa000 + 0x270;
+	of_node_put(np);
+
+	/* Config PSC5 pins for AC97 */
+	*ioctrl++ = 0x07;	/* PSC5_0, STD_ST */
+	*ioctrl++ = 0x03;	/* PSC5_1, STD */
+	*ioctrl++ = 0x03;	/* PSC5_2, STD */
+	*ioctrl++ = 0x03;	/* PSC5_3, STD */
+	*ioctrl   = 0x03;	/* PSC5_4, STD */
+}
+
 static void __init mpc5121_ads_setup_arch(void)
 {
-	preallocate_diu_videomemory();
-
 	printk(KERN_INFO "MPC5121 ADS board from Freescale Semiconductor\n");
+
+	preallocate_diu_videomemory();
+	mpc5121_iopad_setup();
 }
 
 static struct of_device_id __initdata of_bus_ids[] = {
