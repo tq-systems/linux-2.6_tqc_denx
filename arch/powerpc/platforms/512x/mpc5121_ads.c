@@ -137,29 +137,47 @@ mpc512x_find_ips_freq(struct device_node *node)
 }
 EXPORT_SYMBOL(mpc512x_find_ips_freq);
 
-static void __init mpc5121_iopad_setup(void)
+static void __init mpc5121ads_board_setup(void)
 {
+	struct device_node *np;
+	u32 __iomem *ioctrl;
+	void __iomem *i2cctl;
+
 	/*
 	 * io pad config that should be done in u-boot but it isn't
 	 */
-	struct device_node *np;
-	u32 __iomem *ioctrl;
-
 	np = of_find_compatible_node(NULL, NULL, "fsl,mpc5121-immr");
+	if (np) {
+		/*
+		 * 0xa000 is offset to IO Control
+		 * 0x270 is offset to PSC5_0
+		 */
+		ioctrl = of_iomap(np, 0) + 0xa000 + 0x270;
+		of_node_put(np);
+
+		if (ioctrl) {
+			/* Config PSC5 pins for AC97 */
+			*ioctrl++ = 0x07;	/* PSC5_0, STD_ST */
+			*ioctrl++ = 0x03;	/* PSC5_1, STD */
+			*ioctrl++ = 0x03;	/* PSC5_2, STD */
+			*ioctrl++ = 0x03;	/* PSC5_3, STD */
+			*ioctrl   = 0x03;	/* PSC5_4, STD */
+			iounmap(ioctrl);
+		}
+	}
 
 	/*
-	 * 0xa000 is offset to IO Control
-	 * 0x270 is offset to PSC5_0
+	 * turn on i2c interrupts
 	 */
-	ioctrl = of_iomap(np, 0) + 0xa000 + 0x270;
-	of_node_put(np);
-
-	/* Config PSC5 pins for AC97 */
-	*ioctrl++ = 0x07;	/* PSC5_0, STD_ST */
-	*ioctrl++ = 0x03;	/* PSC5_1, STD */
-	*ioctrl++ = 0x03;	/* PSC5_2, STD */
-	*ioctrl++ = 0x03;	/* PSC5_3, STD */
-	*ioctrl   = 0x03;	/* PSC5_4, STD */
+	np = of_find_compatible_node(NULL, NULL, "fsl,mpc5121-i2c-ctrl");
+	if (np) {
+		i2cctl = of_iomap(np, 0);
+		of_node_put(np);
+		if (i2cctl) {
+			out_be32(i2cctl, 0x15000000);
+			iounmap(i2cctl);
+		}
+	}
 }
 
 static void __init mpc5121_ads_setup_arch(void)
@@ -167,7 +185,7 @@ static void __init mpc5121_ads_setup_arch(void)
 	printk(KERN_INFO "MPC5121 ADS board from Freescale Semiconductor\n");
 
 	preallocate_diu_videomemory();
-	mpc5121_iopad_setup();
+	mpc5121ads_board_setup();
 }
 
 static struct of_device_id __initdata of_bus_ids[] = {

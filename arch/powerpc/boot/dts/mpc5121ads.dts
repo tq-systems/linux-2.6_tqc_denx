@@ -114,6 +114,50 @@
 			reg = <0xf00 0x100>;
 		};
 
+		i2c@1700 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "fsl-i2c";
+			cell-index = <0>;
+			reg = <0x1700 0x20>;
+			interrupts = <0x9 0x8>;
+			interrupt-parent = < &ipic >;
+			fsl5200-clocking;
+
+			rtc@68 {
+				device_type = "rtc";
+				compatible = "stm,m41t00";
+				reg = <0x68>;
+			};
+		};
+
+		i2c@1720 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "fsl-i2c";
+			cell-index = <1>;
+			reg = <0x1720 0x20>;
+			interrupts = <0xa 0x8>;
+			interrupt-parent = < &ipic >;
+			fsl5200-clocking;
+		};
+
+		i2c@1740 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "fsl-i2c";
+			cell-index = <2>;
+			reg = <0x1740 0x20>;
+			interrupts = <0xb 0x8>;
+			interrupt-parent = < &ipic >;
+			fsl5200-clocking;
+		};
+
+		i2ccontrol@1760 {
+			compatible = "fsl,mpc5121-i2c-ctrl";
+			reg = <0x1760 0x8>;
+		};
+
 		diu@2100 {
 			device_type = "display";
 			compatible = "fsl-diu";
