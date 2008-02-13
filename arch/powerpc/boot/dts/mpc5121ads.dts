@@ -130,6 +130,13 @@
 			reg = <0xc00 0x100>;
 		};
 
+		rtc@a00 {	// Real time clock
+			compatible = "fsl,mpc5121-rtc";
+			reg = <0xa00 0x100>;
+			interrupts = <79 0x8 80 0x8>;
+			interrupt-parent = < &ipic >;
+		};
+
 		clock@f00 {	// Clock control
 			compatible = "fsl,mpc5121-clock";
 			reg = <0xf00 0x100>;
