@@ -126,6 +126,26 @@ config MTD_NAND_PPCHAMELEONEVB
 	help
 	  This enables the NAND flash driver on the PPChameleon EVB Board.
 
+config MTD_NAND_FSL
+	tristate "NAND Flash controller for MPC512x"
+	depends on PPC_MPC512x
+	help
+	  This enables the NAND flash driver on the MPC512x SOC.
+
+config MTD_NAND_FSL_SWECC
+	bool "Software ECC support "
+	depends on MTD_NAND_FSL
+	help
+	  This enables the support for Software ECC handling. By
+	  default FSL NAND controller Hardware ECC is supported.
+
+config MTD_NAND_FSL_ECC_CORRECTION_OPTION2
+	bool "ECC correction in S/W"
+	depends on MTD_NAND_FSL
+	help
+	  This enables the Option2 NFC ECC correction in software. By
+	  default Option 1 is selected. Enable if you need option2 ECC correction.
+
 config MTD_NAND_S3C2410
 	tristate "NAND Flash support for S3C2410/S3C2440 SoC"
 	depends on ARCH_S3C2410

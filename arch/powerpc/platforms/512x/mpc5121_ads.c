@@ -191,6 +191,7 @@ static void __init mpc5121_ads_setup_arch(void)
 static struct of_device_id __initdata of_bus_ids[] = {
 	{ .name = "soc", },
 	{ .name = "localbus", },
+	{ .compatible = "fsl,mpc5121-nfc", },
 	{},
 };
 

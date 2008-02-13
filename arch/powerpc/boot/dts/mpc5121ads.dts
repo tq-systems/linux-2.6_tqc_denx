@@ -39,6 +39,27 @@
 		reg = <0x00000000 0x10000000>;	// 256MB at 0
 	};
 
+	nfc@40000000 {
+		compatible = "fsl,mpc5121-nfc";
+		reg = <0x40000000 0x100000>;	// 1M at 0x40000000
+		interrupts = <6 8>;
+		interrupt-parent = < &ipic >;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		bank-width = <1>;
+		// ADS has two Hynix 512MB Nand flash chips in a single
+		// stacked package .
+		chips = <2>;
+		nand0@0 {
+			label = "nand0";
+			reg = <0x00000000 0x02000000>; 	// first 32 MB of chip 0
+		};
+		nand1@20000000 {
+			label = "nand1";
+			reg = <0x20000000 0x02000000>; 	// first 32 MB of chip 1
+		};
+	};
+
 	localbus@80000020 {
 		compatible = "fsl,mpc5121ads-localbus";
 		#address-cells = <2>;
