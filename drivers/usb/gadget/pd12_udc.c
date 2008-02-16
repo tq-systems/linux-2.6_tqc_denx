@@ -128,12 +128,12 @@ static __inline__ void usb_set_index(u8 ep)
 
 static void pd12_set_ack(u8 index)
 {
-	
+
 	write_cmd(index);
 	write_cmd(PD12_ACK_SETUP);
 	if(index  == 0)
 		write_cmd(PD12_CLEAR_BUF);
-		
+
 }
 
 static int write_fifo(struct pd12_ep *ep, struct pd12_request *req)
@@ -143,11 +143,11 @@ static int write_fifo(struct pd12_ep *ep, struct pd12_request *req)
 	unsigned length;
 	int is_last;
 	u8 ep_sts;
-	
+
 	buf = req->req.buf + req->req.actual;
 	prefetch(buf);
-	
-	count = ep->ep.maxpacket;	
+
+	count = ep->ep.maxpacket;
 	length = req->req.length - req->req.actual;
 	length = min(length, count);
 	req->req.actual += length;
@@ -267,7 +267,7 @@ static void udc_disable(struct pd12_udc *dev)
 
 	udc_set_address(dev, 0);
 	pd12_set_mode(0x06); /*disconnect soft connect pullup resior */
-	
+
 	dev->ep0state = WAIT_FOR_SETUP;
 	dev->gadget.speed = USB_SPEED_UNKNOWN;
 	dev->usb_address = 0;
@@ -281,7 +281,7 @@ static void udc_reinit(struct pd12_udc *dev)
 {
 	u8 i;
 	u16 tmp;
-	
+
 	DEBUG_PD12("%s, %p\n", __FUNCTION__, dev);
 
 	udc_set_address(dev, 0);
@@ -322,7 +322,7 @@ static void udc_enable(struct pd12_udc *dev)
 
 	u8 i;
 	u16 tmp;
-	
+
 	DEBUG_PD12("%s, %p\n", __FUNCTION__, dev);
 
 	pd12_set_mode(0x06); /*disconnect soft connect pullup resior */
@@ -357,7 +357,7 @@ int usb_gadget_register_driver(struct usb_gadget_driver *driver)
 	dev->driver = driver;
 	dev->gadget.dev.driver = &driver->driver;
 
-	device_add(&dev->gadget.dev);
+	retval = device_add(&dev->gadget.dev);
 	retval = driver->bind(&dev->gadget);
 	if (retval) {
 		printk("%s: bind to driver %s --> error %d\n", dev->gadget.name,
@@ -638,7 +638,7 @@ static void stop_activity(struct pd12_udc *dev,
 		write_data(0x1);
 		nuke(ep, -ESHUTDOWN);
 	}
-		
+
 	write_cmd(1);
 	write_cmd(PD12_SET_STATUS);
 	write_data(0x1);
@@ -685,7 +685,7 @@ static void pd12_reset_intr(struct pd12_udc *dev)
 /*
  *	pd12 usb client interrupt handler.
  */
-static irqreturn_t pd12_udc_irq(int irq, void *_dev, struct pt_regs *r)
+static irqreturn_t pd12_udc_irq(int irq, void *_dev)
 {
 	struct pd12_udc *dev = _dev;
 	volatile u8 int_status;
@@ -704,7 +704,7 @@ static irqreturn_t pd12_udc_irq(int irq, void *_dev, struct pt_regs *r)
 		int_status &= ~(PD12_CNTL_IN | PD12_CNTL_OUT);
 		DEBUG_PD12("PD12_EP0 (control)\n");
 		pd12_handle_ep0(dev);
-		
+
 	}
 	if (int_status & PD12_SUSPEND_CHG)
 	{
@@ -720,7 +720,7 @@ static irqreturn_t pd12_udc_irq(int irq, void *_dev, struct pt_regs *r)
 				dev->driver->resume(&dev->gadget);
 		}
 		else
-		{	
+		{
 			if (dev->gadget.speed !=
 				   USB_SPEED_FULL && dev->driver
 				   && dev->driver->suspend)
@@ -756,7 +756,7 @@ static irqreturn_t pd12_udc_irq(int irq, void *_dev, struct pt_regs *r)
 		DEBUG_PD12("PD12_MAIN_OUT\n");
 		pd12_out_epn(dev, 3);
 	}
-			
+
 	spin_unlock_irqrestore(&dev->lock,flags);
 	return IRQ_HANDLED;
 }
@@ -1106,7 +1106,7 @@ static int write_fifo_ep0(struct pd12_ep *ep, struct pd12_request *req)
 	while (length--) {
 		write_data(*buf++);
 	}
-	
+
 	write_cmd(PD12_VALIDATE_BUF);
 	/* last packet is usually short (or a zlp) */
 	if (unlikely(count != max))
@@ -1285,7 +1285,7 @@ static int pd12_ep0_in(struct pd12_udc *dev)
 	struct pd12_ep *ep = &dev->ep[0];
 	int ret, need_zlp = 0;
 	u8 val;
-	
+
 	DEBUG_PD12_EP0("%s: \n", __FUNCTION__);
 
 
@@ -1395,7 +1395,7 @@ static void pd12_ep0_setup(struct pd12_udc *dev)
 	int i;
 	u8 stat;
 	u8 inbuf[16];
-	
+
 	DEBUG_PD12_SETUP("%s: \n", __FUNCTION__);
 
 	/* Nuke all previous transfers */
@@ -1500,14 +1500,14 @@ static void pd12_handle_ep0(struct pd12_udc *dev)
 {
 	struct pd12_ep *ep = &dev->ep[0];
 	u8 ep0in_sts,ep0out_sts/*,int_sts*/;
-	
+
 	/* Set index 0 */
 	write_cmd(0x0);
 	read_data(&ep0out_sts);
-	
+
 	write_cmd(0x1);
 	read_data(&ep0in_sts);
-	
+
 
 	/*
 	 * if STALL is set, clear STALL bit
@@ -1691,7 +1691,7 @@ static int __devinit pd12_udc_probe(struct device *_dev)
 	DEBUG_PD12("%s: %p\n", __FUNCTION__, _dev);
 	spin_lock_init(&dev->lock);
 	dev->dev = _dev;
-	
+
 	device_initialize(&dev->gadget.dev);
 	dev->gadget.dev.parent = _dev;
 
@@ -1702,9 +1702,7 @@ static int __devinit pd12_udc_probe(struct device *_dev)
 
 	dev->gadget.speed = USB_SPEED_FULL;
 	/* irq setup after old hardware state is cleaned up */
-	retval =
-	    request_irq(IRQ_USBINTR, pd12_udc_irq, /*SA_INTERRUPT*/SA_SAMPLE_RANDOM, driver_name,
-			dev);
+	retval = request_irq(IRQ_USBINTR, pd12_udc_irq, 0, driver_name, dev);
 	if (retval != 0) {
 		DEBUG_PD12(KERN_ERR "%s: can't get irq %i, err %d\n", driver_name,
 		      IRQ_USBINTR, retval);
@@ -1754,7 +1752,7 @@ static struct device_driver udc_driver = {
 static int __init udc_init(void)
 {
 	int retval;
-	
+
 	DEBUG_PD12("%s: %s version %s\n", __FUNCTION__, driver_name, DRIVER_VERSION);
 	th_pd12_virt = ioremap((ulong)TH_PD12_ADDR,0x10);
 	if(!th_pd12_virt){
