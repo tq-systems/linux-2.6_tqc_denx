@@ -7,6 +7,8 @@ config PPC_MPC512x
 config PPC_MPC5121
 	bool
 	select PPC_MPC512x
+	select USB_ARCH_HAS_EHCI
+	select USB_EHCI_BIG_ENDIAN_DESC
 	default n
 
 config MPC5121_ADS

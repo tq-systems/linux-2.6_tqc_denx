@@ -206,6 +206,9 @@ static void tdi_reset (struct ehci_hcd *ehci)
 	 */
 	if (ehci_big_endian_mmio(ehci))
 		tmp |= USBMODE_BE;
+#ifdef CONFIG_PPC_MPC512x		/* must set USBMODE:ES for 5121 */
+	tmp |= USBMODE_BE;
+#endif
 	ehci_writel(ehci, tmp, reg_ptr);
 }
 

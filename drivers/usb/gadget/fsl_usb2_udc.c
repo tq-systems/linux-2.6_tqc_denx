@@ -16,6 +16,7 @@
  * option) any later version.
  */
 
+#undef DEBUG
 #undef VERBOSE
 
 #include <linux/module.h>
@@ -56,6 +57,18 @@
 #define	DRIVER_AUTHOR	"Li Yang/Jiang Bo"
 #define	DRIVER_VERSION	"Apr 20, 2007"
 
+#ifdef CONFIG_PPC_MPC512x
+#define BIG_ENDIAN_DESC
+#endif
+
+#ifdef BIG_ENDIAN_DESC
+#define cpu_to_hc32(x)	(x)
+#define hc32_to_cpu(x)	(x)
+#else
+#define cpu_to_hc32(x)	cpu_to_le32((x))
+#define hc32_to_cpu(x)	le32_to_cpu((x))
+#endif
+
 #define	DMA_ADDR_INVALID	(~(dma_addr_t)0)
 
 static const char driver_name[] = "fsl-usb2-udc";
@@ -76,16 +89,22 @@ fsl_ep0_desc = {
 	.wMaxPacketSize =	USB_MAX_CTRL_PAYLOAD,
 };
 
-static int fsl_udc_suspend(struct platform_device *pdev, pm_message_t state);
-static int fsl_udc_resume(struct platform_device *pdev);
+static int udc_suspend(struct fsl_udc *udc);
+static int fsl_udc_suspend(struct device *dev, pm_message_t state);
+static int fsl_udc_resume(struct device *dev);
 static void fsl_ep_fifo_flush(struct usb_ep *_ep);
 
+#ifdef CONFIG_USB_OTG
+/* Get platform resource from OTG driver */
+extern struct resource *otg_get_resources(void);
+#endif
+
 #ifdef CONFIG_PPC32
-#define fsl_readl(addr)		in_le32(addr)
-#define fsl_writel(addr, val32) out_le32(val32, addr)
+#define fsl_readl(addr)		in_le32((addr))
+#define fsl_writel(addr, val32) out_le32((val32), (addr))
 #else
-#define fsl_readl(addr)		readl(addr)
-#define fsl_writel(addr, val32) writel(addr, val32)
+#define fsl_readl(addr)		readl((addr))
+#define fsl_writel(addr, val32) writel((addr), (val32))
 #endif
 
 /********************************************************************
@@ -181,13 +200,17 @@ static void nuke(struct fsl_ep *ep, int status)
 
 static int dr_controller_setup(struct fsl_udc *udc)
 {
-	unsigned int tmp = 0, portctrl = 0, ctrl = 0;
+	unsigned int tmp = 0, portctrl = 0;
+	unsigned int __attribute((unused)) ctrl = 0;
 	unsigned long timeout;
+	struct fsl_usb2_platform_data *pdata;
+
 #define FSL_UDC_RESET_TIMEOUT 1000
 
 	/* before here, make sure dr_regs has been initialized */
 	if (!udc)
 		return -EINVAL;
+	pdata = udc->pdata;
 
 	/* Stop and reset the usb controller */
 	tmp = fsl_readl(&dr_regs->usbcmd);
@@ -210,9 +233,12 @@ static int dr_controller_setup(struct fsl_udc *udc)
 
 	/* Set the controller as device mode */
 	tmp = fsl_readl(&dr_regs->usbmode);
+	tmp &= ~USB_MODE_CTRL_MODE_MASK;	/* clear mode bits */
 	tmp |= USB_MODE_CTRL_MODE_DEVICE;
 	/* Disable Setup Lockout */
 	tmp |= USB_MODE_SETUP_LOCK_OFF;
+	if (pdata->es)
+		tmp |= USB_MODE_ES;
 	fsl_writel(tmp, &dr_regs->usbmode);
 
 	/* Clear the setup status */
@@ -247,20 +273,24 @@ static int dr_controller_setup(struct fsl_udc *udc)
 	}
 	fsl_writel(portctrl, &dr_regs->portsc1);
 
-	/* Config control enable i/o output, cpu endian register */
-	ctrl = __raw_readl(&usb_sys_regs->control);
-	ctrl |= USB_CTRL_IOENB;
-	__raw_writel(ctrl, &usb_sys_regs->control);
+	if (pdata->have_sysif_regs) {
+		/* Config control enable i/o output, cpu endian register */
+		ctrl = __raw_readl(&usb_sys_regs->control);
+		ctrl |= USB_CTRL_IOENB;
+		__raw_writel(ctrl, &usb_sys_regs->control);
+	}
 
 #if defined(CONFIG_PPC32) && !defined(CONFIG_NOT_COHERENT_CACHE)
 	/* Turn on cache snooping hardware, since some PowerPC platforms
 	 * wholly rely on hardware to deal with cache coherent. */
 
-	/* Setup Snooping for all the 4GB space */
-	tmp = SNOOP_SIZE_2GB;	/* starts from 0x0, size 2G */
-	__raw_writel(tmp, &usb_sys_regs->snoop1);
-	tmp |= 0x80000000;	/* starts from 0x8000000, size 2G */
-	__raw_writel(tmp, &usb_sys_regs->snoop2);
+	if (pdata->have_sysif_regs) {
+		/* Setup Snooping for all the 4GB space */
+		tmp = SNOOP_SIZE_2GB;	/* starts from 0x0, size 2G */
+		__raw_writel(tmp, &usb_sys_regs->snoop1);
+		tmp |= 0x80000000;	/* starts from 0x8000000, size 2G */
+		__raw_writel(tmp, &usb_sys_regs->snoop2);
+	}
 #endif
 
 	return 0;
@@ -280,11 +310,6 @@ static void dr_controller_run(struct fsl_udc *udc)
 
 	/* Clear stopped bit */
 	udc->stopped = 0;
-
-	/* Set the controller as device mode */
-	temp = fsl_readl(&dr_regs->usbmode);
-	temp |= USB_MODE_CTRL_MODE_DEVICE;
-	fsl_writel(temp, &dr_regs->usbmode);
 
 	/* Set controller to Run */
 	temp = fsl_readl(&dr_regs->usbcmd);
@@ -414,7 +439,7 @@ static void struct_ep_qh_setup(struct fsl_udc *udc, unsigned char ep_num,
 	}
 	if (zlt)
 		tmp |= EP_QUEUE_HEAD_ZLT_SEL;
-	p_QH->max_pkt_length = cpu_to_le32(tmp);
+	p_QH->max_pkt_length = cpu_to_hc32(tmp);
 
 	return;
 }
@@ -621,7 +646,7 @@ static int fsl_queue_td(struct fsl_ep *ep, struct fsl_req *req)
 		struct fsl_req *lastreq;
 		lastreq = list_entry(ep->queue.prev, struct fsl_req, queue);
 		lastreq->tail->next_td_ptr =
-			cpu_to_le32(req->head->td_dma & DTD_ADDR_MASK);
+			cpu_to_hc32(req->head->td_dma & DTD_ADDR_MASK);
 		/* Read prime bit, if 1 goto done */
 		if (fsl_readl(&dr_regs->endpointprime) & bitmask)
 			goto out;
@@ -646,10 +671,10 @@ static int fsl_queue_td(struct fsl_ep *ep, struct fsl_req *req)
 
 	/* Write dQH next pointer and terminate bit to 0 */
 	temp = req->head->td_dma & EP_QUEUE_HEAD_NEXT_POINTER_MASK;
-	dQH->next_dtd_ptr = cpu_to_le32(temp);
+	dQH->next_dtd_ptr = cpu_to_hc32(temp);
 
 	/* Clear active and halt bit */
-	temp = cpu_to_le32(~(EP_QUEUE_HEAD_STATUS_ACTIVE
+	temp = cpu_to_hc32(~(EP_QUEUE_HEAD_STATUS_ACTIVE
 			| EP_QUEUE_HEAD_STATUS_HALT));
 	dQH->size_ioc_int_sts &= temp;
 
@@ -684,17 +709,17 @@ static struct ep_td_struct *fsl_build_dtd(struct fsl_req *req, unsigned *length,
 
 	dtd->td_dma = *dma;
 	/* Clear reserved field */
-	swap_temp = cpu_to_le32(dtd->size_ioc_sts);
+	swap_temp = hc32_to_cpu(dtd->size_ioc_sts);
 	swap_temp &= ~DTD_RESERVED_FIELDS;
-	dtd->size_ioc_sts = cpu_to_le32(swap_temp);
+	dtd->size_ioc_sts = cpu_to_hc32(swap_temp);
 
 	/* Init all of buffer page pointers */
 	swap_temp = (u32) (req->req.dma + req->req.actual);
-	dtd->buff_ptr0 = cpu_to_le32(swap_temp);
-	dtd->buff_ptr1 = cpu_to_le32(swap_temp + 0x1000);
-	dtd->buff_ptr2 = cpu_to_le32(swap_temp + 0x2000);
-	dtd->buff_ptr3 = cpu_to_le32(swap_temp + 0x3000);
-	dtd->buff_ptr4 = cpu_to_le32(swap_temp + 0x4000);
+	dtd->buff_ptr0 = cpu_to_hc32(swap_temp);
+	dtd->buff_ptr1 = cpu_to_hc32(swap_temp + 0x1000);
+	dtd->buff_ptr2 = cpu_to_hc32(swap_temp + 0x2000);
+	dtd->buff_ptr3 = cpu_to_hc32(swap_temp + 0x3000);
+	dtd->buff_ptr4 = cpu_to_hc32(swap_temp + 0x4000);
 
 	req->req.actual += *length;
 
@@ -718,7 +743,7 @@ static struct ep_td_struct *fsl_build_dtd(struct fsl_req *req, unsigned *length,
 	if (*is_last && !req->req.no_interrupt)
 		swap_temp |= DTD_IOC;
 
-	dtd->size_ioc_sts = cpu_to_le32(swap_temp);
+	dtd->size_ioc_sts = cpu_to_hc32(swap_temp);
 
 	mb();
 
@@ -745,7 +770,7 @@ static int fsl_req_to_dtd(struct fsl_req *req)
 			is_first = 0;
 			req->head = dtd;
 		} else {
-			last_dtd->next_td_ptr = cpu_to_le32(dma);
+			last_dtd->next_td_ptr = cpu_to_hc32(dma);
 			last_dtd->next_td_virt = dtd;
 		}
 		last_dtd = dtd;
@@ -753,7 +778,7 @@ static int fsl_req_to_dtd(struct fsl_req *req)
 		req->dtd_count++;
 	} while (!is_last);
 
-	dtd->next_td_ptr = cpu_to_le32(DTD_NEXT_TERMINATE);
+	dtd->next_td_ptr = cpu_to_hc32(DTD_NEXT_TERMINATE);
 
 	req->tail = dtd;
 
@@ -1411,6 +1436,7 @@ static void tripwire_handler(struct fsl_udc *udc, u8 ep_num, u8 *buffer_ptr)
 {
 	u32 temp;
 	struct ep_queue_head *qh;
+	struct fsl_usb2_platform_data *pdata = udc->pdata;
 
 	qh = &udc->ep_qh[ep_num * 2 + EP_DIR_OUT];
 
@@ -1425,7 +1451,16 @@ static void tripwire_handler(struct fsl_udc *udc, u8 ep_num, u8 *buffer_ptr)
 		fsl_writel(temp | USB_CMD_SUTW, &dr_regs->usbcmd);
 
 		/* Copy the setup packet to local buffer */
-		memcpy(buffer_ptr, (u8 *) qh->setup_buffer, 8);
+		if (pdata->le_setup_buf) {
+			u32 *p = (u32 *)buffer_ptr;
+			u32 *s = (u32 *)qh->setup_buffer;
+
+			/* Convert little endian setup buffer to CPU endian */
+			*p++ = le32_to_cpu(*s++);
+			*p = le32_to_cpu(*s);
+		} else {
+			memcpy(buffer_ptr, (u8 *) qh->setup_buffer, 8);
+		}
 	} while (!(fsl_readl(&dr_regs->usbcmd) & USB_CMD_SUTW));
 
 	/* Clear Setup Tripwire */
@@ -1449,19 +1484,19 @@ static int process_ep_req(struct fsl_udc *udc, int pipe,
 	actual = curr_req->req.length;
 
 	for (j = 0; j < curr_req->dtd_count; j++) {
-		remaining_length = (le32_to_cpu(curr_td->size_ioc_sts)
+		remaining_length = (hc32_to_cpu(curr_td->size_ioc_sts)
 					& DTD_PACKET_SIZE)
 				>> DTD_LENGTH_BIT_POS;
 		actual -= remaining_length;
 
-		if ((errors = le32_to_cpu(curr_td->size_ioc_sts) &
+		if ((errors = hc32_to_cpu(curr_td->size_ioc_sts) &
 						DTD_ERROR_MASK)) {
 			if (errors & DTD_STATUS_HALTED) {
 				ERR("dTD error %08x QH=%d\n", errors, pipe);
 				/* Clear the errors and Halt condition */
-				tmp = le32_to_cpu(curr_qh->size_ioc_int_sts);
+				tmp = hc32_to_cpu(curr_qh->size_ioc_int_sts);
 				tmp &= ~errors;
-				curr_qh->size_ioc_int_sts = cpu_to_le32(tmp);
+				curr_qh->size_ioc_int_sts = cpu_to_hc32(tmp);
 				status = -EPIPE;
 				/* FIXME: continue with next queued TD? */
 
@@ -1479,7 +1514,7 @@ static int process_ep_req(struct fsl_udc *udc, int pipe,
 				ERR("Unknown error has occured (0x%x)!\r\n",
 					errors);
 
-		} else if (le32_to_cpu(curr_td->size_ioc_sts)
+		} else if (hc32_to_cpu(curr_td->size_ioc_sts)
 				& DTD_STATUS_ACTIVE) {
 			VDBG("Request not complete");
 			status = REQ_UNCOMPLETE;
@@ -1755,6 +1790,7 @@ static irqreturn_t fsl_udc_irq(int irq, void *_udc)
 
 	/* Reset Received */
 	if (irq_src & USB_STS_RESET) {
+		VDBG("reset int");
 		reset_irq(udc);
 		status = IRQ_HANDLED;
 	}
@@ -1812,11 +1848,34 @@ int usb_gadget_register_driver(struct usb_gadget_driver *driver)
 		goto out;
 	}
 
-	/* Enable DR IRQ reg and Set usbcmd reg  Run bit */
-	dr_controller_run(udc_controller);
-	udc_controller->usb_state = USB_STATE_ATTACHED;
-	udc_controller->ep0_state = WAIT_FOR_SETUP;
-	udc_controller->ep0_dir = 0;
+	if (udc_controller->transceiver) {
+		/* Suspend the controller until OTG enable it */
+		udc_suspend(udc_controller);
+		printk(KERN_INFO "Suspend udc for OTG auto detect\n");
+
+		/* export udc suspend/resume call to OTG */
+		udc_controller->gadget.dev.driver->suspend = fsl_udc_suspend;
+		udc_controller->gadget.dev.driver->resume = fsl_udc_resume;
+
+		/* connect to bus through transceiver */
+		if (udc_controller->transceiver) {
+			retval = otg_set_peripheral(udc_controller->transceiver,
+						    &udc_controller->gadget);
+			if (retval < 0) {
+				ERR("can't bind to transceiver\n");
+				driver->unbind(&udc_controller->gadget);
+				udc_controller->gadget.dev.driver = 0;
+				udc_controller->driver = 0;
+				return retval;
+			}
+		}
+	} else {
+		/* Enable DR IRQ reg and Set usbcmd reg  Run bit */
+		dr_controller_run(udc_controller);
+		udc_controller->usb_state = USB_STATE_ATTACHED;
+		udc_controller->ep0_state = WAIT_FOR_SETUP;
+		udc_controller->ep0_dir = 0;
+	}
 	printk(KERN_INFO "%s: bind to driver %s \n",
 			udc_controller->gadget.name, driver->driver.name);
 
@@ -1889,8 +1948,10 @@ static int fsl_proc_read(char *page, char **start, off_t off, int count,
 	u32 tmp_reg;
 	struct fsl_ep *ep = NULL;
 	struct fsl_req *req;
+	struct fsl_usb2_platform_data *pdata;
 
 	struct fsl_udc *udc = udc_controller;
+	pdata = udc->pdata;
 	if (off != 0)
 		return 0;
 
@@ -2057,16 +2118,18 @@ static int fsl_proc_read(char *page, char **start, off_t off, int count,
 	size -= t;
 	next += t;
 
-	tmp_reg = usb_sys_regs->snoop1;
-	t = scnprintf(next, size, "\nSnoop1 Reg : = [0x%x]\n\n", tmp_reg);
-	size -= t;
-	next += t;
+	if (pdata->have_sysif_regs) {
+		tmp_reg = usb_sys_regs->snoop1;
+		t = scnprintf(next, size, "\nSnoop1 Reg = [0x%x]\n\n", tmp_reg);
+		size -= t;
+		next += t;
 
-	tmp_reg = usb_sys_regs->control;
-	t = scnprintf(next, size, "General Control Reg : = [0x%x]\n\n",
-			tmp_reg);
-	size -= t;
-	next += t;
+		tmp_reg = usb_sys_regs->control;
+		t = scnprintf(next, size, "General Control Reg = [0x%x]\n\n",
+				tmp_reg);
+		size -= t;
+		next += t;
+	}
 
 	/* ------fsl_udc, fsl_ep, fsl_request structure information ----- */
 	ep = &udc->eps[0];
@@ -2247,6 +2310,7 @@ static int __init struct_ep_setup(struct fsl_udc *udc, unsigned char index,
 static int __init fsl_udc_probe(struct platform_device *pdev)
 {
 	struct resource *res;
+	struct fsl_usb2_platform_data *pdata = pdev->dev.platform_data;
 	int ret = -ENODEV;
 	unsigned int i;
 	u32 dccparams;
@@ -2261,7 +2325,22 @@ static int __init fsl_udc_probe(struct platform_device *pdev)
 		ERR("malloc udc failed\n");
 		return -ENOMEM;
 	}
+	udc_controller->pdata = pdata;
 
+#ifdef CONFIG_USB_OTG
+	/* Memory and interrupt resources will be passed from OTG */
+	udc_controller->transceiver = otg_get_transceiver();
+	if (!udc_controller->transceiver) {
+		printk(KERN_ERR "Can't find OTG driver!\n");
+		return -ENODEV;
+	}
+
+	res = otg_get_resources();
+	if (!res) {
+		DBG("resource not registered!\n");
+		return -ENODEV;
+	}
+#else
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res) {
 		kfree(udc_controller);
@@ -2274,15 +2353,22 @@ static int __init fsl_udc_probe(struct platform_device *pdev)
 		kfree(udc_controller);
 		return -EBUSY;
 	}
-
+#endif
 	dr_regs = ioremap(res->start, res->end - res->start + 1);
 	if (!dr_regs) {
 		ret = -ENOMEM;
 		goto err1;
 	}
+	pdata->regs = (void *)dr_regs;
+	/*
+	 * do platform specific init: check the clock, grab/config pins, etc.
+	 */
+	if (pdata->platform_init && pdata->platform_init(pdev))
+		return -ENODEV;
 
-	usb_sys_regs = (struct usb_sys_interface *)
-			((u32)dr_regs + USB_DR_SYS_OFFSET);
+	if (pdata->have_sysif_regs)
+		usb_sys_regs = (struct usb_sys_interface *)
+				((u32)dr_regs + USB_DR_SYS_OFFSET);
 
 	/* Read Device Controller Capability Parameters register */
 	dccparams = fsl_readl(&dr_regs->dccparams);
@@ -2295,7 +2381,12 @@ static int __init fsl_udc_probe(struct platform_device *pdev)
 	/* DEN is bidirectional ep number, max_ep doubles the number */
 	udc_controller->max_ep = (dccparams & DCCPARAMS_DEN_MASK) * 2;
 
+#ifdef CONFIG_USB_OTG
+	res++;
+	udc_controller->irq = res->start;
+#else
 	udc_controller->irq = platform_get_irq(pdev, 0);
+#endif
 	if (!udc_controller->irq) {
 		ret = -ENODEV;
 		goto err2;
@@ -2316,9 +2407,11 @@ static int __init fsl_udc_probe(struct platform_device *pdev)
 		goto err3;
 	}
 
-	/* initialize usb hw reg except for regs for EP,
-	 * leave usbintr reg untouched */
-	dr_controller_setup(udc_controller);
+	if (!udc_controller->transceiver) {
+		/* initialize usb hw reg except for regs for EP,
+		 * leave usbintr reg untouched */
+		dr_controller_setup(udc_controller);
+	}
 
 	/* Setup gadget structure */
 	udc_controller->gadget.ops = &fsl_gadget_ops;
@@ -2335,6 +2428,9 @@ static int __init fsl_udc_probe(struct platform_device *pdev)
 	ret = device_register(&udc_controller->gadget.dev);
 	if (ret < 0)
 		goto err3;
+
+	if (udc_controller->transceiver)
+		udc_controller->gadget.is_otg = 1;
 
 	/* setup QH and epctrl for ep0 */
 	ep0_setup(udc_controller);
@@ -2378,6 +2474,8 @@ err2:
 err1:
 	release_mem_region(res->start, res->end - res->start + 1);
 	kfree(udc_controller);
+	if (pdata->platform_uninit)
+		pdata->platform_uninit(pdata);
 	return ret;
 }
 
@@ -2386,7 +2484,8 @@ err1:
  */
 static int __exit fsl_udc_remove(struct platform_device *pdev)
 {
-	struct resource *res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	struct resource __attribute((unused)) *res;
+	struct fsl_usb2_platform_data *pdata = pdev->dev.platform_data;
 
 	DECLARE_COMPLETION(done);
 
@@ -2405,12 +2504,29 @@ static int __exit fsl_udc_remove(struct platform_device *pdev)
 	dma_pool_destroy(udc_controller->td_pool);
 	free_irq(udc_controller->irq, udc_controller);
 	iounmap(dr_regs);
+
+#ifndef CONFIG_USB_OTG
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	release_mem_region(res->start, res->end - res->start + 1);
+#endif
 
 	device_unregister(&udc_controller->gadget.dev);
 	/* free udc --wait for the release() finished */
 	wait_for_completion(&done);
 
+	/*
+	 * do platform specific un-initialization:
+	 * release iomux pins, etc.
+	 */
+	if (pdata->platform_uninit)
+		pdata->platform_uninit(pdata);
+
+	return 0;
+}
+
+static int udc_suspend(struct fsl_udc *udc)
+{
+	udc_controller->stopped = 1;
 	return 0;
 }
 
@@ -2418,17 +2534,16 @@ static int __exit fsl_udc_remove(struct platform_device *pdev)
  * Modify Power management attributes
  * Used by OTG statemachine to disable gadget temporarily
  -----------------------------------------------------------------*/
-static int fsl_udc_suspend(struct platform_device *pdev, pm_message_t state)
+static int fsl_udc_suspend(struct device *dev, pm_message_t state)
 {
-	dr_controller_stop(udc_controller);
-	return 0;
+	return udc_suspend(udc_controller);
 }
 
 /*-----------------------------------------------------------------
  * Invoked on USB resume. May be called in_interrupt.
  * Here we start the DR controller and enable the irq
  *-----------------------------------------------------------------*/
-static int fsl_udc_resume(struct platform_device *pdev)
+static int fsl_udc_resume(struct device *dev)
 {
 	/* Enable DR irq reg and set controller Run */
 	if (udc_controller->stopped) {

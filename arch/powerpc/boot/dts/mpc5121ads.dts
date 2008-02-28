@@ -1,5 +1,5 @@
 /*
- * MPC5121E MDS Device Tree Source
+ * MPC5121E ADS Device Tree Source
  *
  * Copyright 2007,2008 Freescale Semiconductor Inc.
  *
@@ -251,6 +251,37 @@
 			interrupts = <4 0x8>;
 			interrupt-parent = < &ipic >;
 			phy-handle = < &phy >;
+		};
+
+		// 5121e has two dr usb modules
+		// mpc5121_ads only uses USB0
+
+		// USB1 using external ULPI PHY
+		//usb@3000 {
+		//	device_type = "usb";
+		//	compatible = "fsl-usb2-dr";
+		//	reg = <0x3000 0x1000>;
+		//	#address-cells = <1>;
+		//	#size-cells = <0>;
+		//	interrupt-parent = < &ipic >;
+		//	interrupts = <43 0x8>;
+		//	dr_mode = "otg";
+		//	phy_type = "ulpi";
+		//	port1;
+		//};
+
+		// USB0 using internal UTMI PHY
+		usb@4000 {
+			device_type = "usb";
+			compatible = "fsl-usb2-dr";
+			reg = <0x4000 0x1000>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			interrupt-parent = < &ipic >;
+			interrupts = <44 0x8>;
+			dr_mode = "otg";
+			phy_type = "utmi_wide";
+			port0;
 		};
 
 		// 512x PSCs are not 52xx PSCs compatible

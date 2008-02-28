@@ -42,6 +42,12 @@
 extern void init_fcc_ioports(struct fs_platform_info*);
 extern void init_fec_ioports(struct fs_platform_info*);
 extern void init_smc_ioports(struct fs_uart_platform_info*);
+
+extern int usb_platform_dr_init(struct platform_device *);
+extern void usb_platform_dr_uninit(struct fsl_usb2_platform_data *);
+extern int usb_platform_mph_init(struct platform_device *);
+extern void usb_platform_mph_uninit(struct fsl_usb2_platform_data *);
+
 static phys_addr_t immrbase = -1;
 
 phys_addr_t get_immrbase(void)
@@ -527,8 +533,8 @@ static int __init fsl_usb_of_init(void)
 {
 	struct device_node *np;
 	unsigned int i;
-	struct platform_device *usb_dev_mph = NULL, *usb_dev_dr_host = NULL,
-		*usb_dev_dr_client = NULL;
+	struct platform_device *usb_dev_mph = NULL, *usb_dev_dr_otg = NULL,
+		*usb_dev_dr_host = NULL, *usb_dev_dr_client = NULL;
 	int ret;
 
 	for (np = NULL, i = 0;
@@ -570,6 +576,8 @@ static int __init fsl_usb_of_init(void)
 		prop = of_get_property(np, "phy_type", NULL);
 		usb_data.phy_mode = determine_usb_phy(prop);
 
+		usb_data.platform_init = usb_platform_mph_init;
+		usb_data.platform_uninit = usb_platform_mph_uninit;
 		ret =
 		    platform_device_add_data(usb_dev_mph, &usb_data,
 					     sizeof(struct
@@ -614,17 +622,23 @@ static int __init fsl_usb_of_init(void)
 			}
 		} else if (prop && !strcmp(prop, "otg")) {
 			usb_data.operating_mode = FSL_USB2_DR_OTG;
+			usb_dev_dr_otg = platform_device_register_simple(
+					"fsl-usb2-otg", i, r, 2);
+			if (IS_ERR(usb_dev_dr_otg)) {
+				ret = PTR_ERR(usb_dev_dr_otg);
+				goto unreg_dr;
+			}
 			usb_dev_dr_host = platform_device_register_simple(
 					"fsl-ehci", i, r, 2);
 			if (IS_ERR(usb_dev_dr_host)) {
 				ret = PTR_ERR(usb_dev_dr_host);
-				goto err;
+				goto unreg_dr;
 			}
 			usb_dev_dr_client = platform_device_register_simple(
 					"fsl-usb2-udc", i, r, 2);
 			if (IS_ERR(usb_dev_dr_client)) {
 				ret = PTR_ERR(usb_dev_dr_client);
-				goto err;
+				goto unreg_dr;
 			}
 		} else {
 			ret = -EINVAL;
@@ -633,7 +647,18 @@ static int __init fsl_usb_of_init(void)
 
 		prop = of_get_property(np, "phy_type", NULL);
 		usb_data.phy_mode = determine_usb_phy(prop);
+		usb_data.platform_init = usb_platform_dr_init;
+		usb_data.platform_uninit = usb_platform_dr_uninit;
 
+		if (usb_dev_dr_otg) {
+			usb_dev_dr_otg->dev.coherent_dma_mask = 0xffffffffUL;
+			usb_dev_dr_otg->dev.dma_mask = &usb_dev_dr_otg->
+				dev.coherent_dma_mask;
+			if ((ret = platform_device_add_data(usb_dev_dr_otg,
+			    			&usb_data, sizeof(struct
+						fsl_usb2_platform_data))))
+				goto unreg_dr;
+		}
 		if (usb_dev_dr_host) {
 			usb_dev_dr_host->dev.coherent_dma_mask = 0xffffffffUL;
 			usb_dev_dr_host->dev.dma_mask = &usb_dev_dr_host->
@@ -660,6 +685,8 @@ unreg_dr:
 		platform_device_unregister(usb_dev_dr_host);
 	if (usb_dev_dr_client)
 		platform_device_unregister(usb_dev_dr_client);
+	if (usb_dev_dr_otg)
+		platform_device_unregister(usb_dev_dr_otg);
 unreg_mph:
 	if (usb_dev_mph)
 		platform_device_unregister(usb_dev_mph);

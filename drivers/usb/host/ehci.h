@@ -127,6 +127,14 @@ struct ehci_hcd {			/* one per controller */
 #else
 #	define COUNT(x) do {} while (0)
 #endif
+
+	/*
+	 * OTG controllers and transceivers need software interaction;
+	 * other external transceivers should be software-transparent
+	 */
+	struct otg_transceiver	*transceiver;
+	u32			power_budget;
+	struct work_struct change_hcd_work;
 };
 
 /* convert between an HCD pointer and the corresponding EHCI_HCD */
