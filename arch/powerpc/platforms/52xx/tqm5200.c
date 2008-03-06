@@ -40,13 +40,7 @@ static void __init tqm5200_setup_arch(void)
 	/* Map wdt for mpc52xx_restart() */
 	mpc52xx_map_wdt();
 
-#ifdef CONFIG_PCI
-	np = of_find_node_by_type(NULL, "pci");
-	if (np) {
-		mpc52xx_add_bridge(np);
-		of_node_put(np);
-	}
-#endif
+	mpc52xx_setup_pci();
 }
 
 /*
