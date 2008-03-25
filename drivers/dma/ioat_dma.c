@@ -712,8 +712,7 @@ static struct dma_async_tx_descriptor *ioat1_dma_prep_memcpy(
 
 	if (new) {
 		new->len = len;
-		new->dst = dma_dest;
-		new->src = dma_src;
+		new->async_tx.ack = 0;
 		return &new->async_tx;
 	} else
 		return NULL;
@@ -739,8 +738,7 @@ static struct dma_async_tx_descriptor *ioat2_dma_prep_memcpy(
 
 	if (new) {
 		new->len = len;
-		new->dst = dma_dest;
-		new->src = dma_src;
+		new->async_tx.ack = 0;
 		return &new->async_tx;
 	} else
 		return NULL;
