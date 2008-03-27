@@ -15,7 +15,6 @@
 #include <linux/can/ioctl.h>
 
 struct can_priv {
-	struct net_device_stats net_stats;
 	struct can_device_stats can_stats;
 
 	/* can-bus oscillator frequency, in Hz,
