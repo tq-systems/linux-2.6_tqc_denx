@@ -136,7 +136,7 @@
 /* MSCAN Miscellaneous Register (CANMISC) bits */
 #define MSCAN_BOHOLD		0x01
 
-#ifdef	CONFIG_PPC_MPC52xx
+#if defined(CONFIG_PPC_MPC52xx) || defined(CONFIG_PPC_MPC5121)
 #define _MSCAN_RESERVED_(n,num)	u8	_res##n[num]
 #define _MSCAN_RESERVED_DSR_SIZE	2
 #else
@@ -146,7 +146,7 @@
 
 /* Structure of the hardware registers */
 struct mscan_regs {
-	/* (see doco S12MSCANV3/D)		  MPC5200    MSCAN */
+	/* (see doco S12MSCANV3/D)		MPC5200/5121  MSCAN */
 	u8 canctl0;				/* + 0x00     0x00 */
 	u8 canctl1;				/* + 0x01     0x01 */
 	_MSCAN_RESERVED_(1, 2);			/* + 0x02          */
@@ -165,9 +165,16 @@ struct mscan_regs {
 	u8 cantbsel;				/* + 0x14     0x0a */
 	u8 canidac;				/* + 0x15     0x0b */
 	u8 reserved;				/* + 0x16     0x0c */
+#ifndef CONFIG_PPC_MPC5121
 	_MSCAN_RESERVED_(6, 5);			/* + 0x17          */
 #ifndef CONFIG_PPC_MPC52xx
 	u8 canmisc;				/*            0x0d */
+#endif
+#else	/* CONFIG_PPC_MPC5121 */
+	u8 reserved2;				/* 	  0x17	   */
+	u8 cantest;				/*	  0x18	   */
+	u8 canmisc;				/*	  0x19	   */
+	_MSCAN_RESERVED_(6, 2);			/* 	  0x1a     */
 #endif
 	u8 canrxerr;				/* + 0x1c     0x0e */
 	u8 cantxerr;				/* + 0x1d     0x0f */
@@ -206,7 +213,9 @@ struct mscan_regs {
 		 _MSCAN_RESERVED_(22, 2);	/* + 0x5a          */
 		u16 time;			/* + 0x5c     0x2e */
 	} rx;
+#if defined(CONFIG_PPC_MPC52xx) || defined(CONFIG_PPC_MPC5121)
 	 _MSCAN_RESERVED_(23, 2);		/* + 0x5e          */
+#endif
 	struct {
 		u16 idr1_0;			/* + 0x60     0x30 */
 		 _MSCAN_RESERVED_(24, 2);	/* + 0x62          */

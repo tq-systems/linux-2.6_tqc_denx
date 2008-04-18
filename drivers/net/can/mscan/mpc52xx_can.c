@@ -24,6 +24,8 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  * HISTORY:
+ * 	 2008-02-26 Add support for MPC512x
+ * 	 		Hongjun, Chen <hong-jun.chen@freescale.com>
  *	 2005-02-03 created
  *
  */
@@ -36,7 +38,12 @@
 #include <linux/can.h>
 #include <linux/can/dev.h>
 #include <asm/io.h>
+#include <asm/of_platform.h>
+#ifdef CONFIG_PPC_MPC5121
+#include <asm/mpc512x.h>
+#else
 #include <asm/mpc52xx.h>
+#endif
 
 #include "mscan.h"
 
@@ -56,6 +63,9 @@ static int __devinit mpc52xx_can_probe(struct platform_device *pdev)
 	struct can_priv *can;
 	u32 mem_size;
 	int ret = -ENODEV;
+#ifdef CONFIG_PPC_MPC5121
+	struct clk *mscan_clk;
+#endif
 
 	if (!pdata)
 		return ret;
@@ -85,6 +95,17 @@ static int __devinit mpc52xx_can_probe(struct platform_device *pdev)
 		ret = -ENOMEM;
 		goto fail_map;
 	}
+
+#ifdef CONFIG_PPC_MPC5121
+	mscan_clk = clk_get(&pdev->dev, "mscan_clk");
+	if (!mscan_clk) {
+		dev_err(&pdev->dev, "can't get mscan_clk!");
+		ret = -EINVAL;
+		goto fail_map;
+	}
+
+	clk_enable(mscan_clk);
+#endif
 
 	can->can_sys_clock = pdata->clock_frq;
 
@@ -206,7 +227,11 @@ static int __init mpc52xx_of_to_pdev(void)
 		}
 
 		pdata.clock_src = MSCAN_CLKSRC_BUS;
+#ifdef CONFIG_PPC_MPC5121
+		pdata.clock_frq = mpc512x_find_ips_freq(np);
+#else
 		pdata.clock_frq = mpc52xx_find_ipb_freq(np);
+#endif
 		ret = platform_device_add_data(pdev[i], &pdata, sizeof(pdata));
 		if (ret)
 			goto err;
@@ -239,5 +264,5 @@ module_init(mpc52xx_can_init);
 module_exit(mpc52xx_can_exit);
 
 MODULE_AUTHOR("Andrey Volkov <avolkov@varma-el.com>");
-MODULE_DESCRIPTION("Freescale MPC5200 CAN driver");
+MODULE_DESCRIPTION("Freescale MPC5200/MPC512x CAN driver");
 MODULE_LICENSE("GPL v2");

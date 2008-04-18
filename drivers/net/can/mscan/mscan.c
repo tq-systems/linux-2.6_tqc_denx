@@ -37,6 +37,7 @@
 #include <linux/can.h>
 #include <linux/list.h>
 #include <asm/io.h>
+#include <asm/of_platform.h>
 
 #include <linux/can/dev.h>
 #include <linux/can/error.h>
@@ -85,6 +86,8 @@ typedef struct {
 
 struct mscan_priv {
 	struct can_priv can;
+	struct napi_struct napi;
+	struct net_device *netdev;
 	volatile unsigned long flags;
 	u8 shadow_statflg;
 	u8 shadow_canrier;
@@ -327,11 +330,12 @@ static inline int check_set_state(struct net_device *dev, u8 canrflg)
 	return ret;
 }
 
-static int mscan_rx_poll(struct net_device *dev, int *budget)
+int mscan_rx_poll(struct napi_struct *napi, int budget)
 {
+	struct mscan_priv *priv = container_of(napi, struct mscan_priv, napi);
+	struct net_device *dev = priv->netdev;
 	struct mscan_regs *regs = (struct mscan_regs *)dev->base_addr;
-	struct mscan_priv *priv = netdev_priv(dev);
-	int npackets = 0, quota = min(dev->quota, *budget);
+	int npackets = 0, quota = budget;
 	int ret = 1;
 	struct sk_buff *skb;
 	struct can_frame *frame;
@@ -341,12 +345,10 @@ static int mscan_rx_poll(struct net_device *dev, int *budget)
 
 	while (npackets < quota && ((canrflg = in_8(&regs->canrflg)) &
 				    (MSCAN_RXF | MSCAN_ERR_IF))) {
-
 		skb = dev_alloc_skb(sizeof(struct can_frame));
 		if (!skb) {
 			if (printk_ratelimit())
 				dev_notice(ND2D(dev), "packet dropped\n");
-			priv->can.net_stats.rx_dropped++;
 			out_8(&regs->canrflg, canrflg);
 			continue;
 		}
@@ -386,23 +388,19 @@ static int mscan_rx_poll(struct net_device *dev, int *budget)
 				frame->can_id, frame->can_dlc);
 #ifdef DEBUG
 			for (i = 0;
-			     i < frame->can_dlc && !(frame->can_id &
-						     CAN_FLAG_RTR); i++)
-				printk("%2x ", frame->data[i]);
+			     i < frame->can_dlc; i++)
+				printk("%02x ", frame->data[i]);
 			printk("\n");
 #endif
 
 			out_8(&regs->canrflg, MSCAN_RXF);
 			dev->last_rx = jiffies;
-			priv->can.net_stats.rx_packets++;
-			priv->can.net_stats.rx_bytes += frame->can_dlc;
 		} else if (canrflg & MSCAN_ERR_IF) {
 			frame->can_id = CAN_ERR_FLAG;
 
 			if (canrflg & MSCAN_OVRIF) {
 				frame->can_id |= CAN_ERR_CRTL;
 				frame->data[1] = CAN_ERR_CRTL_RX_OVERFLOW;
-				priv->can.net_stats.rx_over_errors++;
 			} else
 				frame->data[1] = 0;
 
@@ -444,11 +442,8 @@ static int mscan_rx_poll(struct net_device *dev, int *budget)
 		netif_receive_skb(skb);
 	}
 
-	*budget -= npackets;
-	dev->quota -= npackets;
-
 	if (!(in_8(&regs->canrflg) & (MSCAN_RXF | MSCAN_ERR_IF))) {
-		netif_rx_complete(dev);
+		netif_rx_complete(dev, napi);
 		clear_bit(F_RX_PROGRESS, &priv->flags);
 		out_8(&regs->canrier,
 		      in_8(&regs->canrier) | MSCAN_ERR_IF | MSCAN_RXFIE);
@@ -456,7 +451,6 @@ static int mscan_rx_poll(struct net_device *dev, int *budget)
 	}
 	return ret;
 }
-
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
 static irqreturn_t mscan_isr(int irq, void *dev_id, struct pt_regs *r)
@@ -484,13 +478,9 @@ static irqreturn_t mscan_isr(int irq, void *dev_id)
 				continue;
 
 			if (in_8(&regs->cantaak) & mask) {
-				priv->can.net_stats.tx_dropped++;
-				priv->can.net_stats.tx_aborted_errors++;
+				priv->can.can_stats.error_warning++;
 			} else {
 				out_8(&regs->cantbsel, mask);
-				priv->can.net_stats.tx_bytes +=
-				    in_8(&regs->tx.dlr);
-				priv->can.net_stats.tx_packets++;
 			}
 			priv->tx_active &= ~mask;
 			list_del(pos);
@@ -516,14 +506,18 @@ static irqreturn_t mscan_isr(int irq, void *dev_id)
 			out_8(&regs->canrflg, MSCAN_CSCIF);
 			ret = IRQ_HANDLED;
 		}
+
 		if (canrflg & ~MSCAN_STAT_MSK) {
 			priv->shadow_canrier = in_8(&regs->canrier);
 			out_8(&regs->canrier, 0);
-			netif_rx_schedule(dev);
+			clear_bit(NAPI_STATE_SCHED,
+					  &priv->napi.state);
+			netif_rx_schedule(dev, &priv->napi);
 			ret = IRQ_HANDLED;
 		} else
 			clear_bit(F_RX_PROGRESS, &priv->flags);
 	}
+
 	return ret;
 }
 
@@ -689,14 +683,14 @@ struct net_device *alloc_mscandev(void)
 		return NULL;
 	priv = netdev_priv(dev);
 
+	priv->netdev = dev;
 	dev->watchdog_timeo = MSCAN_WATCHDOG_TIMEOUT;
 	dev->open = mscan_open;
 	dev->stop = mscan_close;
 	dev->hard_start_xmit = mscan_hard_start_xmit;
 	dev->tx_timeout = mscan_tx_timeout;
 
-	dev->poll = mscan_rx_poll;
-	dev->weight = 8;
+	netif_napi_add(dev, &priv->napi, mscan_rx_poll, 8);
 
 	priv->can.do_set_bit_time = mscan_do_set_bit_time;
 	priv->can.do_set_mode = mscan_do_set_mode;

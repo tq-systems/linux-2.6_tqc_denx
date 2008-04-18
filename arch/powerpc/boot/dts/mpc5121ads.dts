@@ -156,6 +156,30 @@
 			reg = <0xf00 0x100>;
 		};
 
+		mscan@1300 {
+			device_type = "mscan";
+			compatible = "mpc512x-mscan\0mpc5200b-mscan\0mpc5200-mscan";
+			cell-index = <0>;
+			interrupts = <0xc 0x8>;
+			interrupt-parent = < &ipic >;
+			clk-name = "mscan_clk";
+			clk-parent = "ips_clk";
+			clk-ctrl = <1 0x19>; // sccr1 bit 25
+			reg = <0x1300 0x80>;
+		};
+
+		mscan@1380 {
+			device_type = "mscan";
+			compatible = "mpc512x-mscan\0mpc5200b-mscan\0mpc5200-mscan";
+			cell-index = <1>;
+			interrupts = <0xd 0x8>;
+			interrupt-parent = < &ipic >;
+			//clk-name = "mscan_clk";
+			//clk-parent = "ips_clk";
+			//clk-ctrl = <1 0x19>; // sccr1 bit 25
+			reg = <0x1380 0x80>;
+		};
+
 		i2c@1700 {
 			#address-cells = <1>;
 			#size-cells = <0>;

@@ -93,7 +93,11 @@ struct ddr512x {
 
 #define MPC512x_DDR_BASE	0x9000	/* Offset of DRAM controller */
 
+struct clk;
+
 extern unsigned long mpc512x_find_ips_freq(struct device_node *node);
+extern struct clk *clk_get(struct device *dev, const char *id);
+extern int clk_enable(struct clk *clk);
 
 #endif /* __ASM_POWERPC_MPC512x_H__ */
 

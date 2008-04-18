@@ -270,8 +270,8 @@ EXPORT_SYMBOL(mpc512x_find_ips_freq);
 static void __init mpc5121ads_board_setup(void)
 {
 	struct device_node *np;
-	u32 __iomem *ioctrl;
-	void __iomem *i2cctl;
+	u32 __iomem *ac97io, *canio;
+	void __iomem *i2cctl, *immr;
 
 	/*
 	 * io pad config that should be done in u-boot but it isn't
@@ -281,19 +281,29 @@ static void __init mpc5121ads_board_setup(void)
 		/*
 		 * 0xa000 is offset to IO Control
 		 * 0x270 is offset to PSC5_0
+		 * 0x1f8 is offset to CAN0_Tx
 		 */
-		ioctrl = of_iomap(np, 0) + 0xa000 + 0x270;
+		immr = of_iomap(np, 0);
+		ac97io = immr + 0xa000 + 0x270;
+		canio = immr + 0xa000 + 0x1f8;
 		of_node_put(np);
 
-		if (ioctrl) {
+		if (ac97io) {
 			/* Config PSC5 pins for AC97 */
-			*ioctrl++ = 0x07;	/* PSC5_0, STD_ST */
-			*ioctrl++ = 0x03;	/* PSC5_1, STD */
-			*ioctrl++ = 0x03;	/* PSC5_2, STD */
-			*ioctrl++ = 0x03;	/* PSC5_3, STD */
-			*ioctrl   = 0x03;	/* PSC5_4, STD */
-			iounmap(ioctrl);
+			*ac97io++ = 0x07;	/* PSC5_0, STD_ST */
+			*ac97io++ = 0x03;	/* PSC5_1, STD */
+			*ac97io++ = 0x03;	/* PSC5_2, STD */
+			*ac97io++ = 0x03;	/* PSC5_3, STD */
+			*ac97io	  = 0x03;	/* PSC5_4, STD */
 		}
+
+		if (canio) {
+			/* Config Tx pins of CAN0 and CAN1 */
+			*canio++ = 0x03;	/* CAN0, Tx */
+			*canio   = 0x03;	/* CAN0, Tx */
+		}
+
+		iounmap(immr);
 	}
 
 	/*
