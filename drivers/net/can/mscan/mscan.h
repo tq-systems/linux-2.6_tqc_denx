@@ -242,9 +242,15 @@ struct mscan_regs {
 
 #define MSCAN_WATCHDOG_TIMEOUT	((500*HZ)/1000)
 
+enum {
+	MPC52xx_MSCAN,
+	MPC512x_MSCAN,
+};
+
 struct mscan_platform_data {
 	u8 clock_src;		/* MSCAN_CLKSRC_BUS or MSCAN_CLKSRC_XTAL */
 	u32 clock_frq;		/* can ref. clock, in Hz */
+	u8 cpu_type;		/* MPC52xx_MSCAN or MPC512x_MSCAN */
 };
 
 struct net_device *alloc_mscandev(void);

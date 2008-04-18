@@ -39,11 +39,7 @@
 #include <linux/can/dev.h>
 #include <asm/io.h>
 #include <asm/of_platform.h>
-#ifdef CONFIG_PPC_MPC5121
 #include <asm/mpc512x.h>
-#else
-#include <asm/mpc52xx.h>
-#endif
 
 #include "mscan.h"
 
@@ -63,9 +59,6 @@ static int __devinit mpc52xx_can_probe(struct platform_device *pdev)
 	struct can_priv *can;
 	u32 mem_size;
 	int ret = -ENODEV;
-#ifdef CONFIG_PPC_MPC5121
-	struct clk *mscan_clk;
-#endif
 
 	if (!pdata)
 		return ret;
@@ -96,16 +89,17 @@ static int __devinit mpc52xx_can_probe(struct platform_device *pdev)
 		goto fail_map;
 	}
 
-#ifdef CONFIG_PPC_MPC5121
-	mscan_clk = clk_get(&pdev->dev, "mscan_clk");
-	if (!mscan_clk) {
-		dev_err(&pdev->dev, "can't get mscan_clk!");
-		ret = -EINVAL;
-		goto fail_map;
-	}
+	if (pdata->cpu_type == MPC512x_MSCAN) {
+		struct clk *mscan_clk;
+		mscan_clk = clk_get(&pdev->dev, "mscan_clk");
+		if (!mscan_clk) {
+			dev_err(&pdev->dev, "can't get mscan_clk!");
+			ret = -EINVAL;
+			goto fail_map;
+		}
 
-	clk_enable(mscan_clk);
-#endif
+		clk_enable(mscan_clk);
+	}
 
 	can->can_sys_clock = pdata->clock_frq;
 
@@ -184,7 +178,7 @@ static int mpc52xx_can_resume(struct platform_device *pdev)
 
 static struct platform_driver mpc52xx_can_driver = {
 	.driver = {
-		   .name = "mpc52xx-mscan",
+		   .name = "fsl-mscan",
 		   },
 	.probe = mpc52xx_can_probe,
 	.remove = __devexit_p(mpc52xx_can_remove),
@@ -195,14 +189,54 @@ static struct platform_driver mpc52xx_can_driver = {
 };
 
 #ifdef CONFIG_PPC_MERGE
+unsigned int fsl_find_ipb_freq(struct device_node *node)
+{
+	struct device_node *np;
+	const unsigned int *p_ipb_freq = NULL;
+
+	of_node_get(node);
+	while (node) {
+		p_ipb_freq = of_get_property(node, "bus-frequency", NULL);
+		if (p_ipb_freq)
+			break;
+
+		np = of_get_parent(node);
+		of_node_put(node);
+		node = np;
+	}
+	if (node)
+		of_node_put(node);
+
+	return p_ipb_freq ? *p_ipb_freq : 0;
+}
+
 static int __init mpc52xx_of_to_pdev(void)
 {
 	struct device_node *np = NULL;
 	unsigned int i;
-	int ret;
+	int ret, type = -1, index = 0;
+	char *mscan_comp_name[] = {"mpc5200-mscan", "mpc512x-mscan"};
+	int  cpu_type[] = {MPC52xx_MSCAN, MPC512x_MSCAN};
+
+	for (i = 0; i < 2; i++) {
+		np = of_find_compatible_node(np, "mscan", mscan_comp_name[i]);
+		if (np) {
+			type = cpu_type[i];
+			index = i;
+			of_node_put(np);
+			np = NULL;
+			break;
+		}
+	}
+
+	if (type != cpu_type[0] && type != cpu_type[1]) {
+		printk(KERN_ERR "%s: can't find any CAN devices\n", __func__);
+		return -1;
+	}
 
 	for (i = 0;
-	     (np = of_find_compatible_node(np, "mscan", "mpc5200-mscan"));
+	     (np = of_find_compatible_node(np, "mscan",
+					   mscan_comp_name[index]));
 	     i++) {
 		struct resource r[2] = { };
 		struct mscan_platform_data pdata;
@@ -220,18 +254,16 @@ static int __init mpc52xx_of_to_pdev(void)
 		of_irq_to_resource(np, 0, &r[1]);
 
 		pdev[i] =
-		    platform_device_register_simple("mpc52xx-mscan", i, r, 2);
+		    platform_device_register_simple("fsl-mscan", i, r, 2);
 		if (IS_ERR(pdev[i])) {
 			ret = PTR_ERR(pdev[i]);
 			goto err;
 		}
 
 		pdata.clock_src = MSCAN_CLKSRC_BUS;
-#ifdef CONFIG_PPC_MPC5121
-		pdata.clock_frq = mpc512x_find_ips_freq(np);
-#else
-		pdata.clock_frq = mpc52xx_find_ipb_freq(np);
-#endif
+		pdata.cpu_type = type;
+		pdata.clock_frq = fsl_find_ipb_freq(np);
+
 		ret = platform_device_add_data(pdev[i], &pdata, sizeof(pdata));
 		if (ret)
 			goto err;

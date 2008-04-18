@@ -158,7 +158,7 @@
 
 		mscan@1300 {
 			device_type = "mscan";
-			compatible = "mpc512x-mscan\0mpc5200b-mscan\0mpc5200-mscan";
+			compatible = "mpc512x-mscan";
 			cell-index = <0>;
 			interrupts = <0xc 0x8>;
 			interrupt-parent = < &ipic >;
@@ -170,7 +170,7 @@
 
 		mscan@1380 {
 			device_type = "mscan";
-			compatible = "mpc512x-mscan\0mpc5200b-mscan\0mpc5200-mscan";
+			compatible = "mpc512x-mscan";
 			cell-index = <1>;
 			interrupts = <0xd 0x8>;
 			interrupt-parent = < &ipic >;
