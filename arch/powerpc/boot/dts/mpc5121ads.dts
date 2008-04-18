@@ -48,7 +48,7 @@
 	};
 
 	sram@30000000 {
-		compatible = "fsl, mpc5121-sram";
+		compatible = "fsl,mpc5121-sram";
 		reg = <0x30000000 0x20000>;		// 128K at 0x30000000
 	};
 
