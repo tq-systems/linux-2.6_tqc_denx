@@ -215,11 +215,11 @@ static int __init mpc52xx_of_to_pdev(void)
 	struct device_node *np = NULL;
 	unsigned int i;
 	int ret, type = -1, index = 0;
-	char *mscan_comp_name[] = {"mpc5200-mscan", "mpc512x-mscan"};
+	char *mscan_comp_name[] = {"fsl,mpc5200-mscan", "fsl,mpc5121-mscan"};
 	int  cpu_type[] = {MPC52xx_MSCAN, MPC512x_MSCAN};
 
 	for (i = 0; i < 2; i++) {
-		np = of_find_compatible_node(np, "mscan", mscan_comp_name[i]);
+		np = of_find_compatible_node(np, NULL, mscan_comp_name[i]);
 		if (np) {
 			type = cpu_type[i];
 			index = i;
@@ -235,7 +235,7 @@ static int __init mpc52xx_of_to_pdev(void)
 	}
 
 	for (i = 0;
-	     (np = of_find_compatible_node(np, "mscan",
+	     (np = of_find_compatible_node(np, NULL,
 					   mscan_comp_name[index]));
 	     i++) {
 		struct resource r[2] = { };
