@@ -117,6 +117,19 @@
 			compatible = "fsl,mpc5121ads-cpld";
 			reg = <0x2 0x0 0x8000>;
 		};
+
+		cpld_pic: pic@2,a {
+			compatible = "fsl,mpc5121ads-cpld-pic";
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			reg = <0x2 0xa 0x5>;
+			interrupt-parent = < &ipic >;
+			// irq routing
+			//	all irqs but touch screen are routed to irq0 (ipic 48)
+			//	touch screen is statically routed to irq1 (ipic 17)
+			//	so don't use it here
+			interrupts = <48 0x8>;
+		};
 	};
 
 	soc@80000000 {

@@ -429,6 +429,7 @@ static void __init mpc5121_ads_declare_of_platform_devices(void)
 static void __init mpc5121_ads_init_IRQ(void)
 {
 	struct device_node *np;
+	extern void mpc5121_ads_cpld_pic_init(void);
 
 	np = of_find_compatible_node(NULL, NULL, "fsl,ipic");
 	if (!np)
@@ -442,6 +443,11 @@ static void __init mpc5121_ads_init_IRQ(void)
 	 * in case the boot rom changed something on us.
 	 */
 	ipic_set_default_priority();
+
+	/*
+	 * Intialize the cpld interrupt host
+	 */
+	mpc5121_ads_cpld_pic_init();
 }
 
 /*
