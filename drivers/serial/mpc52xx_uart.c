@@ -293,6 +293,9 @@ static struct psc_ops mpc52xx_psc_ops = {
 #define FIFO_512x(port) ((struct mpc512x_psc_fifo __iomem *)(PSC(port)+1))
 static void mpc512x_psc_fifo_init(struct uart_port *port)
 {
+	/* /16 prescaler */
+	out_be16(&PSC(port)->mpc52xx_psc_clock_select, 0xdd00);
+
 	out_be32(&FIFO_512x(port)->txcmd, MPC512x_PSC_FIFO_RESET_SLICE);
 	out_be32(&FIFO_512x(port)->txcmd, MPC512x_PSC_FIFO_ENABLE_SLICE);
 	out_be32(&FIFO_512x(port)->txalarm, 1);
