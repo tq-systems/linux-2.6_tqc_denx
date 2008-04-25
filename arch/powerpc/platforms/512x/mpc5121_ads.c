@@ -267,6 +267,61 @@ mpc512x_find_ips_freq(struct device_node *node)
 }
 EXPORT_SYMBOL(mpc512x_find_ips_freq);
 
+#define DEFAULT_FIFO_SIZE 16
+
+static unsigned int get_fifo_size(struct device_node *np, int psc_num, char *fifo_name)
+{
+	const unsigned int *fp;
+
+	fp = of_get_property(np, fifo_name, NULL);
+	if (fp)
+		return *fp;
+	printk(KERN_WARNING "no %s property for psc%d defaulting to %d\n",
+		fifo_name, psc_num, DEFAULT_FIFO_SIZE);
+	return DEFAULT_FIFO_SIZE;
+}
+
+static void __init mpc5121_psc_fifo_init(void)
+{
+	struct device_node *np;
+	const u32 *cell_index;
+	int fifobase = 0; /* current fifo address in 32 bit words */
+
+	for_each_compatible_node(np, NULL, "fsl,mpc5121-psc") {
+		cell_index = of_get_property(np, "cell-index", NULL);
+		if (cell_index) {
+			int psc_num = *cell_index;
+			unsigned int tx_fifo_size;
+			unsigned int rx_fifo_size;
+			void __iomem *psc;
+
+			tx_fifo_size = get_fifo_size(np, psc_num, "tx-fifo-size");
+			rx_fifo_size = get_fifo_size(np, psc_num, "rx-fifo-size");
+
+			/* size in register is in 4 byte words */
+			tx_fifo_size /= 4;
+			rx_fifo_size /= 4;
+
+			psc = of_iomap(np, 0);
+
+			/* tx fifo size register is at 0x9c and rx at 0xdc */
+			out_be32(psc + 0x9c, (fifobase << 16) | tx_fifo_size);
+			fifobase += tx_fifo_size;
+			out_be32(psc + 0xdc, (fifobase << 16) | rx_fifo_size);
+			fifobase += rx_fifo_size;
+
+			/* reset and enable the slices */
+			out_be32(psc + 0x80, 0x80);
+			out_be32(psc + 0x80, 0x01);
+			out_be32(psc + 0xc0, 0x80);
+			out_be32(psc + 0xc0, 0x01);
+
+			iounmap(psc);
+		}
+	}
+}
+
+
 #define IO_PSC_0_0_ADDR_OFFSET	0x20c
 #define IO_PSC_PIN_SIZE		0x14
 #define IO_PSC_PIN_OFFSET(x)	(IO_PSC_0_0_ADDR_OFFSET + IO_PSC_PIN_SIZE * (x))
@@ -331,6 +386,8 @@ static void __init mpc5121ads_board_setup(void)
 		of_node_put(np);
 		iounmap(ioctl);
 	}
+
+	mpc5121_psc_fifo_init();
 
 	/*
 	 * turn on i2c interrupts
