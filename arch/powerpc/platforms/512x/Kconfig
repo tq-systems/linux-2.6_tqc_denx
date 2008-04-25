@@ -9,6 +9,7 @@ config PPC_MPC5121
 	select PPC_MPC512x
 	select USB_ARCH_HAS_EHCI
 	select USB_EHCI_BIG_ENDIAN_DESC
+	select PPC_INDIRECT_PCI
 	default n
 
 config MPC5121_ADS

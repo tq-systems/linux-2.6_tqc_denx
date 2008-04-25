@@ -28,6 +28,8 @@
 #include <linux/bootmem.h>
 #include <asm/rheap.h>
 
+#include "mpc512x.h"
+
 #ifdef DEBUG
 #define DPRINTK(fmt, args...) printk("%s: " fmt,__FUNCTION__,## args)
 #else
@@ -405,10 +407,18 @@ static void __init mpc5121ads_board_setup(void)
 
 static void __init mpc5121_ads_setup_arch(void)
 {
+#ifdef CONFIG_PCI
+	struct device_node *np;
+#endif
 	printk(KERN_INFO "MPC5121 ADS board from Freescale Semiconductor\n");
 
 	preallocate_diu_videomemory();
 	mpc5121ads_board_setup();
+
+#ifdef CONFIG_PCI
+	for_each_compatible_node(np, "pci", "fsl,mpc5121-pci")
+		mpc512x_add_bridge(np);
+#endif
 }
 
 static struct of_device_id __initdata of_bus_ids[] = {
