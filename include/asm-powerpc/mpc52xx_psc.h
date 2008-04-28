@@ -131,8 +131,15 @@ struct mpc52xx_psc {
 	u8		reserved5[3];
 	u8		ctlr;		/* PSC + 0x1c */
 	u8		reserved6[3];
+#ifdef CONFIG_PPC_MPC5121
+	u32             ccr;            /* PSC + 0x20 */
+	u32             ac97slots;      /* PSC + 0x24 */
+	u32             ac97cmd;        /* PSC + 0x28 */
+	u32             ac97data;       /* PSC + 0x2c */
+#else
 	u16		ccr;		/* PSC + 0x20 */
 	u8		reserved7[14];
+#endif
 	u8		ivr;		/* PSC + 0x30 */
 	u8		reserved8[3];
 	u8		ip;		/* PSC + 0x34 */

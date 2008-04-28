@@ -1,0 +1,22 @@
+menu "ALSA SoC audio for Freescale SOCs"
+
+config SND_SOC_MPC5121
+	bool "ALSA SoC support for the MPC5121 SOC"
+	depends on SND_SOC && PPC_MPC512x
+	default y if PPC_MPC512x
+	help
+	  Say Y if you want to add support for codecs attached to a PSC running
+	  in I2S/AC97 mode on an MPC5121
+
+config SND_SOC_MPC5121_ADS
+	bool "ALSA SoC support for the Freescale MPC5121ADS board in AC97 mode"
+	depends on SND_SOC_MPC5121
+	select SND_SOC_AC97_CODEC
+        select SND_AC97_CODEC
+	default y if PPC_MPC512x
+	help
+	  Say Y if you want to enable audio using the LM4550B AC97 codec on a
+	  MPC5121ADS, please check your hardware to learn which type of codec
+	  is used, and describe it correctly in device tree.
+
+endmenu
