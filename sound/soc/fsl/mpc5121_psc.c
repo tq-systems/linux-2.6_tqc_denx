@@ -18,7 +18,9 @@
 #include <linux/device.h>
 #include <linux/delay.h>
 #include <linux/clk.h>
+
 #include <asm/mpc52xx_psc.h>
+#include <asm/mpc512x.h>
 
 #include <sound/driver.h>
 #include <sound/core.h>
@@ -234,10 +236,29 @@ int mpc5121_psc_init(struct device *dev, struct snd_soc_cpu_dai *cpu_dai)
 			0x300	     | /* Enable rx timeslot 3,4 */
 			0);
 
-		/* Reset external AC97 codec */
+		/*
+		 * Reset external AC97 codec
+		 * Some codecs go into test mode if the data or sync lines
+		 * are high when the reset line goes high.
+		 * Avoid that by forcing them to GPIOs and driving them
+		 * low during reset.
+		 */
+		mpc5121_pscgpio_make_gpio(cpu_dai->id, 1); 
+		mpc5121_pscgpio_pin_low(cpu_dai->id, 1); 
+		mpc5121_pscgpio_make_gpio(cpu_dai->id, 2); 
+		mpc5121_pscgpio_pin_low(cpu_dai->id, 2); 
+
 		out_8(&psc->op1, 0x02); iosync();
 		udelay(1);
 		out_8(&psc->op0, 0x02); iosync();
+		udelay(1);
+
+		/*
+		 * Reset complete, change lines back to PSC signals.
+		 */
+		mpc5121_pscgpio_make_psc(cpu_dai->id, 1); 
+		mpc5121_pscgpio_make_psc(cpu_dai->id, 2); 
+
 		/* enable the fifos */
 		mpc5121_psc_fifo_enable(psc_private);
 
