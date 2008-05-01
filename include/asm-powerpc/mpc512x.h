@@ -99,5 +99,15 @@ extern unsigned long mpc512x_find_ips_freq(struct device_node *node);
 extern struct clk *clk_get(struct device *dev, const char *id);
 extern int clk_enable(struct clk *clk);
 
+
+/*
+ * helper routines for switching psc pins to gpios and back
+ * and driving them high or low
+ */
+extern void mpc5121_pscgpio_make_gpio(int psc, int pin);
+extern void mpc5121_pscgpio_pin_high(int psc, int pin);
+extern void mpc5121_pscgpio_pin_low(int psc, int pin);
+extern void mpc5121_pscgpio_make_psc(int psc, int pin);
+
 #endif /* __ASM_POWERPC_MPC512x_H__ */
 
