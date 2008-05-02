@@ -283,6 +283,32 @@ static unsigned int get_fifo_size(struct device_node *np, int psc_num, char *fif
 	return DEFAULT_FIFO_SIZE;
 }
 
+/*
+ * If the kernel is using a different PSC for the console than
+ * u-boot then that psc's clock will not be enabled.
+ * The clock driver runs after console_init so turn on
+ * the clock here.
+ */
+static void __init mpc5121_psc_lowlevel_clock_init(void)
+{
+	struct device_node *np;
+	const u32 *cell_index;
+	void __iomem *clockctl;
+
+	np = of_find_compatible_node(NULL, NULL, "fsl,mpc5121-clock");
+	clockctl = of_iomap(np, 0);
+	of_node_put(np);
+
+	if (clockctl) 
+		for_each_compatible_node(np, NULL, "fsl,mpc5121-psc") {
+			cell_index = of_get_property(np, "cell-index", NULL);
+			if (cell_index) {
+				setbits32(clockctl+4, 0x08000000 >> *cell_index);
+			}
+		}
+	iounmap(clockctl);
+}
+
 static void __init mpc5121_psc_fifo_init(void)
 {
 	struct device_node *np;
@@ -389,6 +415,7 @@ static void __init mpc5121ads_board_setup(void)
 		iounmap(ioctl);
 	}
 
+	mpc5121_psc_lowlevel_clock_init();
 	mpc5121_psc_fifo_init();
 
 	/*

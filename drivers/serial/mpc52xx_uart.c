@@ -161,9 +161,6 @@ static void mpc52xx_psc_fifo_init(struct uart_port *port)
 	struct mpc52xx_psc __iomem *psc = PSC(port);
 	struct mpc52xx_psc_fifo __iomem *fifo = FIFO_52xx(port);
 
-	/* /32 prescaler */
-	out_be16(&psc->mpc52xx_psc_clock_select, 0xdd00);
-
 	out_8(&fifo->rfcntl, 0x00);
 	out_be16(&fifo->rfalarm, 0x1ff);
 	out_8(&fifo->tfcntl, 0x07);
@@ -293,9 +290,6 @@ static struct psc_ops mpc52xx_psc_ops = {
 #define FIFO_512x(port) ((struct mpc512x_psc_fifo __iomem *)(PSC(port)+1))
 static void mpc512x_psc_fifo_init(struct uart_port *port)
 {
-	/* /16 prescaler */
-	out_be16(&PSC(port)->mpc52xx_psc_clock_select, 0xdd00);
-
 	out_be32(&FIFO_512x(port)->txcmd, MPC512x_PSC_FIFO_RESET_SLICE);
 	out_be32(&FIFO_512x(port)->txcmd, MPC512x_PSC_FIFO_ENABLE_SLICE);
 	out_be32(&FIFO_512x(port)->txalarm, 1);
@@ -544,6 +538,9 @@ mpc52xx_uart_startup(struct uart_port *port)
 	out_8(&psc->command, MPC52xx_PSC_RST_TX);
 
 	out_be32(&psc->sicr, 0);	/* UART mode DCD ignored */
+
+	/* set prescaler */
+	out_be16(&PSC(port)->mpc52xx_psc_clock_select, 0xdd00);
 
 	psc_ops->fifo_init(port);
 
@@ -989,6 +986,9 @@ mpc52xx_console_setup(struct console *co, char *options)
 	if (port->membase == NULL)
 		return -EINVAL;
 
+	/* set prescaler */
+	out_be16(&PSC(port)->mpc52xx_psc_clock_select, 0xdd00);
+
 	/* Setup the port parameters accoding to options */
 	if (options)
 		uart_parse_options(options, &baud, &parity, &bits, &flow);
@@ -1054,6 +1054,9 @@ mpc52xx_console_setup(struct console *co, char *options)
 
 	if (port->membase == NULL)
 		return -EINVAL;
+
+	/* set prescaler */
+	out_be16(&PSC(port)->mpc52xx_psc_clock_select, 0xdd00);
 
 	pr_debug("mpc52xx-psc uart at %p, mapped to %p, irq=%x, freq=%i\n",
 		 (void *)port->mapbase, port->membase,
