@@ -248,4 +248,7 @@ struct mpc512x_psc_fifo {
 #define rxdata_32 rxdata.rxdata_32
 };
 
+/* extract and scale size field in txsz or rxsz */
+#define MPC512x_PSC_FIFO_SZ(sz) ((sz & 0x7ff) << 2)
+
 #endif  /* __ASM_MPC52xx_PSC_H__ */

@@ -329,6 +329,28 @@
 			tx-fifo-size = <16>;
 		};
 
+//		// PSC3 in spi mode for MPC5121eADS off board MEDIA touch screen
+//		// connected via connector P6
+//		// Note:  To use this console needs to be set to ttyPSC1
+//		// 	  and the first serial transceiver needs to be disabled
+//		//	  via the UART0_FOFF#(Bit#5) bit in CPLD register 0x15.
+//		spi@11300 {
+//			compatible = "fsl,mpc5121-psc-spi", "fsl,mpc5121-psc";
+//			cell-index = <3>;
+//			reg = <0x11300 0x100>;
+//			interrupts = <40 0x8>;
+//			interrupt-parent = < &ipic >;
+//			rx-fifo-size = <16>;
+//			tx-fifo-size = <16>;
+//
+//			// dummy entry for testing spidev user land spidev api
+//			spidev@0 {
+//				compatible = "linux,spidev";
+//				max_speed_hz = <100000>;
+//				chip_select = <0>;	// not yet used
+//			};
+//		};
+
 		// PSC4 serial port B aka ttyPSC1
 		serial@11400 {
 			device_type = "serial";
