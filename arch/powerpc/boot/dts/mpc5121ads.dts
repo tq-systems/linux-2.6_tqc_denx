@@ -344,10 +344,23 @@
 //			tx-fifo-size = <16>;
 //
 //			// dummy entry for testing spidev user land spidev api
-//			spidev@0 {
-//				compatible = "linux,spidev";
-//				max_speed_hz = <100000>;
-//				chip_select = <0>;	// not yet used
+//			//spidev@0 {
+//			//	compatible = "linux,spidev";
+//			//	max_speed_hz = <100000>;
+//			//	chip_select = <0>;	// not yet used
+//			//};
+//
+//			// entry for 784x touch screen controller
+//			ts@0 {
+//				compatible = "ti,ads7846";
+//				model = <7843>;
+//				vref_delay_usecs = <100>;
+//				x_plate_ohms = <500>;
+//				y_plate_ohms = <500>;
+//				// pendown irq is statically routed by
+//				// cpld pic to external irq1 (ipic 17)
+//				interrupt-parent = < &ipic >;
+//				interrupts = <17 2>;
 //			};
 //		};
 

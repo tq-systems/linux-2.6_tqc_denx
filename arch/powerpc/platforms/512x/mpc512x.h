@@ -11,4 +11,6 @@
 #define __MPC512X_H__
 extern int mpc512x_add_bridge(struct device_node *dev);
 
+extern int mpc5121ads_get_pendown_state(void);
+
 #endif				/* __MPC512X_H__ */

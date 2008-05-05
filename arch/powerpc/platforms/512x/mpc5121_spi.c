@@ -19,6 +19,8 @@
 
 #include <asm/io.h>
 
+#include "mpc512x.h"
+
 static u32 get_int_prop(struct device_node *np, const char *name, u32 def)
 {
 	const u32 *prop;
@@ -30,14 +32,42 @@ static u32 get_int_prop(struct device_node *np, const char *name, u32 def)
 	return def;
 }
 
-#define GET_INT_PROP(pd, np, nodename)	\
-	dp->propname = get_int_prop(np, #propname, pd->propname)
+#define GET_INT_PROP(pd, np, propname)	\
+	(pd->propname = get_int_prop(np, #propname, pd->propname))
+
+
+#if defined(CONFIG_TOUCHSCREEN_ADS7846) || defined(CONFIG_TOUCHSCREEN_ADS7846_MODULE)
+#define CFG_ADS7846
+#include <linux/spi/ads7846.h>
+#endif
+
+#ifdef CFG_ADS7846
+
+static struct ads7846_platform_data mpc5121eads_ads7846_platform_data __initdata = {
+	.model			= 7843,
+	.vref_delay_usecs	= 100,
+	.x_plate_ohms		= 500,
+	.y_plate_ohms		= 500,
+	.get_pendown_state	= mpc5121ads_get_pendown_state,
+};
+
+static void __init *ads7846_get_pdata(struct device_node *np)
+{
+	struct ads7846_platform_data *pd = &mpc5121eads_ads7846_platform_data;
+	GET_INT_PROP(pd, np, model);
+	GET_INT_PROP(pd, np, vref_delay_usecs);
+	GET_INT_PROP(pd, np, x_plate_ohms);
+	GET_INT_PROP(pd, np, y_plate_ohms);
+
+	return pd;
+}
+#endif
 
 struct spi_driver_device {
 	char *of_device;
 	char *modalias;
 	int needirq;
-	void *get_platform_data(struct device_node *);
+	void *(*get_platform_data)(struct device_node *);
 };
 
 static struct spi_driver_device spi_devices[] __initdata = {
@@ -45,6 +75,24 @@ static struct spi_driver_device spi_devices[] __initdata = {
 	{
 		.of_device = "linux,spidev",
 		.modalias = "spidev",
+	},
+#endif
+#ifdef CFG_ADS7846
+	{
+		.of_device = "ti,ads7846",
+		.modalias = "ads7846",
+		.needirq = 1,
+		.get_platform_data = ads7846_get_pdata,
+	},
+#endif
+#ifdef CONFIG_SND_SOC_AD1939
+	{
+		.of_device = "ad,ad1938",
+		.modalias = "AD1939",
+	},
+	{
+		.of_device = "ad,ad1939",
+		.modalias ="AD1939",
 	},
 #endif
 };
@@ -65,6 +113,8 @@ static int __init find_spi_driver(struct device_node *node,
 		if (strlcpy(info->modalias, spi_devices[i].modalias,
 			    KOBJ_NAME_LEN) >= KOBJ_NAME_LEN)
 			return -ENOMEM;
+		if (spi_devices[i].get_platform_data)
+			info->platform_data = spi_devices[i].get_platform_data(node);
 		return 0;
 	}
 	return -ENODEV;

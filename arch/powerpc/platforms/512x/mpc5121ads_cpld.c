@@ -173,3 +173,10 @@ void __init mpc5121_ads_cpld_pic_init(void)
       end:
 	of_node_put(np);
 }
+
+/* return 1 if pen is down */
+int 
+mpc5121ads_get_pendown_state(void)
+{
+	return (cpld_regs->misc_status & 0x10) == 0;
+}
