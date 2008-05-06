@@ -267,43 +267,69 @@ mpc512x_find_ips_freq(struct device_node *node)
 }
 EXPORT_SYMBOL(mpc512x_find_ips_freq);
 
+#define IO_PSC_0_0_ADDR_OFFSET	0x20c
+#define IO_PSC_PIN_SIZE		0x14
+#define IO_PSC_PIN_OFFSET(x)	(IO_PSC_0_0_ADDR_OFFSET + IO_PSC_PIN_SIZE * (x))
+
+static void __init mpc5121_psc_iopad_init(void __iomem *ioctl)
+{
+	struct device_node *np;
+	const u32 *cell_index;
+
+	for_each_compatible_node(np, NULL, "fsl,mpc5121-psc") {
+		cell_index = of_get_property(np, "cell-index", NULL);
+		if (cell_index) {
+			u32 __iomem *pscioctl;
+			int psc_num = *cell_index;
+
+			pscioctl = ioctl + IO_PSC_PIN_OFFSET(psc_num);
+			out_be32(pscioctl++, 0x07);	/* PSCn_0, STD_ST */
+			out_be32(pscioctl++, 0x03);	/* PSCn_1, STD */
+			out_be32(pscioctl++, 0x03);	/* PSCn_2, STD */
+			out_be32(pscioctl++, 0x03);	/* PSCn_3, STD */
+			out_be32(pscioctl++, 0x03);	/* PSCn_4, STD */
+		}
+	}
+}
+
+static void __init mpc5121_can_iopad_init(void __iomem *ioctl)
+{
+	struct device_node *np;
+	const u32 *cell_index;
+
+	for_each_compatible_node(np, NULL, "fsl,mpc5121-mscan") {
+		cell_index = of_get_property(np, "cell-index", NULL);
+		if (cell_index) {
+			u32 __iomem *canioctl;
+			int can_num = *cell_index;
+
+			/*
+			 * Config can Tx pin
+			 * 0x1f8 is offset to CAN0_Tx
+			 */
+			canioctl = ioctl + 0x1f8 + 4 * can_num;
+			out_be32(canioctl, 0x03);
+		}
+	}
+}
+
 static void __init mpc5121ads_board_setup(void)
 {
 	struct device_node *np;
-	u32 __iomem *ac97io, *canio;
-	void __iomem *i2cctl, *immr;
+	void __iomem *i2cctl;
 
 	/*
-	 * io pad config that should be done in u-boot but it isn't
+	 * io pad config
 	 */
-	np = of_find_compatible_node(NULL, NULL, "fsl,mpc5121-immr");
+	np = of_find_compatible_node(NULL, NULL, "fsl,mpc5121-ioctl");
 	if (np) {
-		/*
-		 * 0xa000 is offset to IO Control
-		 * 0x270 is offset to PSC5_0
-		 * 0x1f8 is offset to CAN0_Tx
-		 */
-		immr = of_iomap(np, 0);
-		ac97io = immr + 0xa000 + 0x270;
-		canio = immr + 0xa000 + 0x1f8;
+		void __iomem *ioctl = of_iomap(np, 0);
+
+		mpc5121_psc_iopad_init(ioctl);
+		mpc5121_can_iopad_init(ioctl);
+
 		of_node_put(np);
-
-		if (ac97io) {
-			/* Config PSC5 pins for AC97 */
-			*ac97io++ = 0x07;	/* PSC5_0, STD_ST */
-			*ac97io++ = 0x03;	/* PSC5_1, STD */
-			*ac97io++ = 0x03;	/* PSC5_2, STD */
-			*ac97io++ = 0x03;	/* PSC5_3, STD */
-			*ac97io	  = 0x03;	/* PSC5_4, STD */
-		}
-
-		if (canio) {
-			/* Config Tx pins of CAN0 and CAN1 */
-			*canio++ = 0x03;	/* CAN0, Tx */
-			*canio   = 0x03;	/* CAN0, Tx */
-		}
-
-		iounmap(immr);
+		iounmap(ioctl);
 	}
 
 	/*

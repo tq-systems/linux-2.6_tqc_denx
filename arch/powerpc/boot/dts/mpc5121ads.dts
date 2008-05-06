@@ -284,6 +284,12 @@
 			port0;
 		};
 
+		// IO control
+		ioctl@a000 {
+			compatible = "fsl,mpc5121-ioctl";
+			reg = <0xA000 0x1000>;
+		};
+
 		// 512x PSCs are not 52xx PSCs compatible
 		// PSC3 serial port A aka ttyPSC0
 		serial@11300 {
