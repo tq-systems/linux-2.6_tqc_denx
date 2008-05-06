@@ -192,41 +192,7 @@ void clk_unregister(struct clk *clk)
 }
 EXPORT_SYMBOL(clk_unregister);
 
-static unsigned long devtree_getfreq(char *nodename, char *clockname)
-{
-	struct device_node *node;
-	const unsigned int *fp;
-	unsigned int val = 0;
-
-	node = of_find_node_by_type(NULL, nodename);
-	if (node) {
-		fp = of_get_property(node, clockname, NULL);
-		if (fp) {
-			val = of_read_ulong(fp, 1);
-		}
-	}
-	return val;
-}
-
-static void ref_clk_calc(struct clk *clk)
-{
-	clk->rate = devtree_getfreq("soc", "ref-frequency");
-
-	if (clk->rate == 0) {
-		/*
-		 * no reference clock in device tree
-		 * use a sane default
-		 */
-		clk->rate = 33000000;
-	}
-}
-
-static struct clk ref_clk = {
-	.name = "ref_clk",
-	.calc = ref_clk_calc,
-};
-
-static void sys_clk_calc(struct clk *clk)
+static unsigned long spmf_mult(void)
 {
 	/*
 	 * Convert spmf to multiplier
@@ -237,7 +203,12 @@ static void sys_clk_calc(struct clk *clk)
 		36, 40, 44, 48,
 		52, 56, 60, 64
 	};
+	int spmf = (clockctl->spmr >> 24) & 0xf;
+	return spmf_to_mult[spmf];
+}
 
+static unsigned long sysdiv_div_x_2(void)
+{
 	/*
 	 * Convert sysdiv to divisor x 2
 	 * Some divisors have fractional parts so
@@ -254,17 +225,82 @@ static void sys_clk_calc(struct clk *clk)
 		52, 56, 58, 62,
 		60, 64, 66,
 	};
-
-	int spmf = (clockctl->spmr >> 24) & 0xf;
 	int sysdiv = (clockctl->scfr2 >> 26) & 0x3f;
+	return sysdiv_to_div_x_2[sysdiv];
+}
+
+static unsigned long ref_to_sys(unsigned long rate)
+{
+	rate *= spmf_mult();
+	rate *= 2;
+	rate /= sysdiv_div_x_2();
+
+	return rate;
+}
+
+static unsigned long sys_to_ref(unsigned long rate)
+{
+	rate *= sysdiv_div_x_2();
+	rate /= 2;
+	rate /= spmf_mult();
+
+	return rate;
+}
+
+static long ips_to_ref(unsigned long rate)
+{
+	int ips_div = (clockctl->scfr1 >> 23) & 0x7;
+
+	rate *= ips_div;	/* csb_clk = ips_clk * ips_div */
+	rate *= 2;		/* sys_clk = csb_clk * 2 */
+	return sys_to_ref(rate);
+}
+
+static unsigned long devtree_getfreq(char *nodetype, char *clockname)
+{
+	struct device_node *node;
+	const unsigned int *fp;
+	unsigned int val = 0;
+
+	node = of_find_node_by_type(NULL, "soc");
+	if (node) {
+		fp = of_get_property(node, clockname, NULL);
+		if (fp)
+			val = of_read_ulong(fp, 1);
+	}
+	return val;
+}
+
+static void ref_clk_calc(struct clk *clk)
+{
 	unsigned long rate;
 
-	rate = ref_clk.rate * spmf_to_mult[spmf];
+	rate = devtree_getfreq("soc", "ref-frequency");
+	if (rate == 0) {
+		/*
+		 * no reference clock in device tree
+		 * get ips clock freq and go backwards from there
+		 */
+		rate = devtree_getfreq("soc", "bus-frequency");
+		if (rate == 0) {
+			printk(KERN_WARNING
+				"No bus-frequency in dev tree using 66MHz\n");
+			clk->rate = 66000000;
+			return;
+		}
+		clk->rate = ips_to_ref(rate);
+	}
+}
 
-	rate *= 2;
-	rate /= sysdiv_to_div_x_2[sysdiv];
+static struct clk ref_clk = {
+	.name = "ref_clk",
+	.calc = ref_clk_calc,
+};
 
-	clk->rate = rate;
+
+static void sys_clk_calc(struct clk *clk)
+{
+	clk->rate = ref_to_sys(ref_clk.rate);
 }
 
 static struct clk sys_clk = {
@@ -300,9 +336,14 @@ static void half_clk_calc(struct clk *clk)
 
 static void generic_div_clk_calc(struct clk *clk)
 {
-	int div = (clockctl->scfr1 >> clk->div_shift) & 0x3;
+	int div = (clockctl->scfr1 >> clk->div_shift) & 0x7;
 
 	clk->rate = clk->parent->rate / div;
+}
+
+static void unity_clk_calc(struct clk *clk)
+{
+	clk->rate = clk->parent->rate;
 }
 
 static struct clk csb_clk = {
@@ -352,6 +393,51 @@ static struct clk lpc_clk = {
 	.div_shift = 11,
 };
 
+static struct clk axe_clk = {
+	.name = "axe_clk",
+	.flags = CLK_HAS_CTRL,
+	.reg = 1,
+	.bit = 30,
+	.calc = unity_clk_calc,
+	.parent = &csb_clk,
+};
+
+static struct clk usb1_clk = {
+	.name = "usb1_clk",
+	.flags = CLK_HAS_CTRL,
+	.reg = 1,
+	.bit = 28,
+	.calc = unity_clk_calc,
+	.parent = &csb_clk,
+};
+
+static struct clk usb2_clk = {
+	.name = "usb2_clk",
+	.flags = CLK_HAS_CTRL,
+	.reg = 1,
+	.bit = 27,
+	.calc = unity_clk_calc,
+	.parent = &csb_clk,
+};
+
+static struct clk mscan_clk = {
+	.name = "mscan_clk",
+	.flags = CLK_HAS_CTRL,
+	.reg = 1,
+	.bit = 25,
+	.calc = unity_clk_calc,
+	.parent = &ips_clk,
+};
+
+static struct clk sdhc_clk = {
+	.name = "sdhc_clk",
+	.flags = CLK_HAS_CTRL,
+	.reg = 1,
+	.bit = 24,
+	.calc = unity_clk_calc,
+	.parent = &ips_clk,
+};
+
 static struct clk mbx_bus_clk = {
 	.name = "mbx_bus_clk",
 	.flags = CLK_HAS_CTRL,
@@ -366,6 +452,7 @@ static struct clk mbx_clk = {
 	.flags = CLK_HAS_CTRL,
 	.reg = 1,
 	.bit = 21,
+	.calc = unity_clk_calc,
 	.parent = &csb_clk,
 };
 
@@ -392,6 +479,8 @@ static struct clk pci_clk = {
 static void psc_mclk_in_calc(struct clk *clk)
 {
 	clk->rate = devtree_getfreq("soc", "psc_mclk_in");
+	if (!clk->rate)
+		clk->rate = 25000000;
 }
 
 static struct clk psc_mclk_in = {
@@ -436,6 +525,11 @@ struct clk *rate_clks[] = {
 	&mbx_bus_clk,
 	&mbx_clk,
 	&mbx_3d_clk,
+	&axe_clk,
+	&usb1_clk,
+	&usb2_clk,
+	&mscan_clk,
+	&sdhc_clk,
 	&pci_clk,
 	&psc_mclk_in,
 	&spdif_txclk,
@@ -496,9 +590,24 @@ static struct clk *psc_dev_clk(int pscnum)
  */
 static void psc_calc_rate(struct clk *clk, int pscnum, struct device_node *np)
 {
-	unsigned long mclk_src = csb_clk.rate;
+	unsigned long mclk_src = sys_clk.rate;
 	unsigned long mclk_div;
 
+	/* FIXME do this based on info in device tree
+	 * set mclk divider to all 0s instead of all 1s */
+
+	/*
+	 * Can only change value of mclk divider
+	 * when the divider is disabled.
+	 *
+	 * Zero is not a valid divider so minimum
+	 * divider is 1
+	 *
+	 * disable/set divider/enable
+	 */
+	out_be32(&clockctl->pccr[pscnum], 0);
+	out_be32(&clockctl->pccr[pscnum], 0x00020000);
+	out_be32(&clockctl->pccr[pscnum], 0x00030000);
 
 	if (clockctl->pccr[pscnum] & 0x80) {
 		clk->rate = spdif_rxclk.rate;
@@ -507,7 +616,7 @@ static void psc_calc_rate(struct clk *clk, int pscnum, struct device_node *np)
 
 	switch ((clockctl->pccr[pscnum] >> 14) & 0x3) {
 	case 0:
-		mclk_src = csb_clk.rate;
+		mclk_src = sys_clk.rate;
 		break;
 	case 1:
 		mclk_src = ref_clk.rate;
@@ -520,7 +629,7 @@ static void psc_calc_rate(struct clk *clk, int pscnum, struct device_node *np)
 		break;
 	}
 
-	mclk_div = ((clockctl->pccr[pscnum] >> 17) & 0x7ff) + 1;
+	mclk_div = ((clockctl->pccr[pscnum] >> 17) & 0x7fff) + 1;
 	clk->rate = mclk_src / mclk_div;
 }
 
@@ -535,9 +644,7 @@ static void psc_clks_init(void)
 	const u32 *cell_index;
 	struct of_device *ofdev;
 
-	for (np = NULL;
-	     (np =
-	      of_find_compatible_node(np, NULL, "fsl,mpc5121-psc")) != NULL; ) {
+	for_each_compatible_node(np, NULL, "fsl,mpc5121-psc") {
 		cell_index = of_get_property(np, "cell-index", NULL);
 		if (cell_index) {
 			int pscnum = *cell_index;
@@ -557,67 +664,8 @@ static void psc_clks_init(void)
 			}
 			sprintf(clk->name, "psc%d_mclk", pscnum);
 			clk_register(clk);
+			clk_enable(clk);
 		}
-	}
-}
-
-static void dev_clk_init(struct device *dev, const char *name,
-			 const char *parentname, int reg, int bit)
-{
-	struct clk *clk = &dev_clks[reg][bit];
-	struct clk *parent;
-
-	clk->dev = dev;
-	strcpy(clk->name, name);
-	clk->flags = CLK_HAS_CTRL;
-	clk->reg = reg;
-	clk->bit = bit;
-	parent = clk_get(NULL, parentname);
-	if (parent) {
-		clk->rate = parent->rate;
-		clk->parent = parent;
-		clk->flags |= CLK_HAS_RATE;
-		clk_put(parent);
-	} else {
-		clk->rate = 0;
-		printk("dev_clk_init: could not find parent %s\n", parentname);
-
-	}
-	clk_register(clk);
-}
-
-/*
- * Create a clock for all devices in device tree
- * with a "clk-name" property.
- */
-static void dev_clks_init(void)
-{
-	struct device_node *np;
-	const char *name;
-	const char *parent;
-	const u32 *ctrlspec;
-	struct of_device *ofdev;
-	struct device *dev;
-	int reg, bit;
-
-	for (np = NULL; (np = of_find_all_nodes(np)) != NULL; ) {
-		name = of_get_property(np, "clk-name", NULL);
-		if (!name)
-			continue;
-		ofdev = of_find_device_by_node(np);
-		if (!ofdev)
-			continue;
-		parent = of_get_property(np, "clk-parent", NULL);
-		if (!parent)
-			continue;
-		ctrlspec = of_get_property(np, "clk-ctrl", NULL);
-		if (!ctrlspec)
-			continue;
-		dev = &ofdev->dev;
-		reg = ctrlspec[0];
-		bit = ctrlspec[1];
-
-		dev_clk_init(dev, name, parent, reg, bit);
 	}
 }
 
@@ -637,7 +685,6 @@ mpc5121_clk_init(void)
 
 	rate_clks_init();
 	psc_clks_init();
-	dev_clks_init();
 
 	/* leave clockctl mapped forever */
 	/*iounmap(clockctl); */
