@@ -322,12 +322,12 @@ static struct of_device_id __initdata of_bus_ids[] = {
 	{ .name = "soc", },
 	{ .name = "localbus", },
 	{ .compatible = "fsl,mpc5121-nfc", },
+	{ .compatible = "fsl,mpc5121-mbx", },
 	{},
 };
 
 static void __init mpc5121_ads_declare_of_platform_devices(void)
 {
-	/* Find every child of the SOC node and add it to of_platform */
 	if (of_platform_bus_probe(NULL, of_bus_ids, NULL))
 		printk(KERN_ERR __FILE__ ": "
 			"Error while probing of_platform bus\n");

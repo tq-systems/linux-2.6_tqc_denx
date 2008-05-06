@@ -952,6 +952,30 @@ static int __init early_init_dt_scan_memory(unsigned long node,
 	return 0;
 }
 
+#ifdef CONFIG_AXEMBX_RESERVE_BOOL
+unsigned long axemem[2] = {
+	CONFIG_AXEMBX_RESERVE_START,
+	CONFIG_AXE_RESERVE_SIZE
+};
+
+unsigned long *get_axe_mem(void)
+{
+	return axemem;
+}
+EXPORT_SYMBOL(get_axe_mem);
+
+unsigned long mbxmem[2] = {
+	CONFIG_AXEMBX_RESERVE_START+CONFIG_AXE_RESERVE_SIZE,
+	CONFIG_MBX_RESERVE_SIZE
+};
+
+unsigned long *get_mbx_mem(void)
+{
+	return mbxmem;
+}
+EXPORT_SYMBOL(get_mbx_mem);
+#endif
+
 static void __init early_reserve_mem(void)
 {
 	u64 base, size;
@@ -966,7 +990,11 @@ static void __init early_reserve_mem(void)
 	self_base = __pa((unsigned long)initial_boot_params);
 	self_size = initial_boot_params->totalsize;
 	lmb_reserve(self_base, self_size);
-
+#ifdef CONFIG_AXEMBX_RESERVE_BOOL
+	lmb_reserve(CONFIG_AXEMBX_RESERVE_START,
+		CONFIG_AXE_RESERVE_SIZE +
+		CONFIG_MBX_RESERVE_SIZE);
+#endif
 #ifdef CONFIG_BLK_DEV_INITRD
 	/* then reserve the initrd, if any */
 	if (initrd_start && (initrd_end > initrd_start))

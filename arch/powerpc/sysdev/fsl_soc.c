@@ -1338,3 +1338,43 @@ void fsl_rstcr_restart(char *cmd)
 	while (1) ;
 }
 #endif
+
+#ifdef CONFIG_PPC_MPC5121
+static int __init mpc512x_mbx_of_init(void)
+{
+	struct device_node *np;
+	struct platform_device *mbx_dev;
+	int ret;
+
+	np = of_find_compatible_node(NULL, NULL, "fsl,mpc5121-mbx");
+	if (np) {
+		struct resource r[2];
+		int irq;
+
+		memset(&r, 0, sizeof(r));
+
+		ret = of_address_to_resource(np, 0, &r[0]);
+		if (ret)
+			goto err;
+
+		irq = of_irq_to_resource(np, 0, &r[1]);
+		if (irq == NO_IRQ)
+			goto err;
+
+		printk(KERN_INFO "Reserved irq %d(0x%x) for MBX\n", irq, irq);
+
+		mbx_dev = platform_device_register_simple("mpc5121-mbx",
+				0, r, 2);
+		if (IS_ERR(mbx_dev)) {
+			ret = PTR_ERR(mbx_dev);
+			goto err;
+		}
+	}
+	return 0;
+err:
+	return ret;
+}
+
+arch_initcall(mpc512x_mbx_of_init);
+#endif /* CONFIG_PPC_512x */
+

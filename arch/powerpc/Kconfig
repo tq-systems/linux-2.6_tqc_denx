@@ -578,6 +578,28 @@ config LOWMEM_SIZE
 	hex "Maximum low memory size (in bytes)" if LOWMEM_SIZE_BOOL
 	default "0x30000000"
 
+config AXEMBX_RESERVE_BOOL
+	bool "Reserved memory for AXE and/or MBX driver"
+	depends on ADVANCED_OPTIONS
+	help
+	  This option allows you to reserve a range of memory for the AXE driver
+	  this is useful for guaranteeing that the AXE driver gets memory under 16M
+	  and for reserving a contiguous region for MBX frame buffers
+
+	  Say N here unless you know what you are doing.
+
+config AXEMBX_RESERVE_START
+	hex "Start of reserved AXE and MBX driver memory in bytes" if AXEMBX_RESERVE_BOOL
+	default "0x00400000"
+
+config AXE_RESERVE_SIZE
+	hex "Size of reserved AXE driver memory in bytes" if AXEMBX_RESERVE_BOOL
+	default "0x00100000"
+
+config MBX_RESERVE_SIZE
+	hex "Size of reserved MBX driver memory in bytes" if AXEMBX_RESERVE_BOOL
+	default "0x04000000"
+
 config KERNEL_START_BOOL
 	bool "Set custom kernel base address"
 	depends on ADVANCED_OPTIONS
