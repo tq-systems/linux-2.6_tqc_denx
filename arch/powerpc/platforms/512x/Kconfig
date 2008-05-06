@@ -21,3 +21,11 @@ config MPC5121_ADS
 	help
 	  This option enables support for the MPC5121E ADS board.
 	default n
+
+config MPC5121_PM_TEST
+	bool "Lowlevel test for Freescale MPC5121E Power Management"
+	depends on PM && !CAN_MPC52XX
+	---help---
+	  Say yes here to enable low level powermanagement test code.
+	  It uses the MSCAN modules so the 5121 MSCAN driver must
+	  be turned off.

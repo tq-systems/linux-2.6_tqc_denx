@@ -28,6 +28,10 @@ struct mpc512x_pm mpc512x_pm_data;
 
 static u32 mpc512x_targeted_state = MPC512x_PM_NONE;
 
+#ifdef CONFIG_MPC5121_PM_TEST
+extern void mpc512x_pm_test_setup(void);
+#endif
+
 /*
  * Name       : mpc512x_pm_setup
  * Desc       : This function is called to setup and map the IO region.
@@ -44,6 +48,9 @@ static int mpc512x_pm_setup(void)
                	printk(KERN_ERR "Error mapping MBAR registers\n");
                 return -1;
        	}
+#ifdef CONFIG_MPC5121_PM_TEST
+	mpc512x_pm_test_setup();
+#endif
 	return 0;
 }
 
