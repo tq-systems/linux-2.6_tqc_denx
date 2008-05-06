@@ -23,6 +23,7 @@
 #include <asm/prom.h>
 #include <asm/time.h>
 
+#include <asm/mpc512x.h>
 #include <sysdev/fsl_soc.h>
 
 #include <linux/bootmem.h>
@@ -441,6 +442,10 @@ static void __init mpc5121_ads_setup_arch(void)
 
 	preallocate_diu_videomemory();
 	mpc5121ads_board_setup();
+ 
+#ifdef CONFIG_PM
+ 	mpc512x_pm_init();
+#endif
 
 #ifdef CONFIG_PCI
 	for_each_compatible_node(np, "pci", "fsl,mpc5121-pci")

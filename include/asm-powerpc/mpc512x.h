@@ -26,14 +26,22 @@ struct ddr512x {
 	u32 ddr_time_config2;	/* Timing Configuration Register */
 	u32 ddr_command;	/* Command Register */
 	u32 ddr_compact_command;	/* Compact Command Register */
-	u32 self_refresh_cmd_0;	/* Enter/Exit Self Refresh Registers */
-	u32 self_refresh_cmd_1;	/* Enter/Exit Self Refresh Registers */
-	u32 self_refresh_cmd_2;	/* Enter/Exit Self Refresh Registers */
-	u32 self_refresh_cmd_3;	/* Enter/Exit Self Refresh Registers */
-	u32 self_refresh_cmd_4;	/* Enter/Exit Self Refresh Registers */
-	u32 self_refresh_cmd_5;	/* Enter/Exit Self Refresh Registers */
-	u32 self_refresh_cmd_6;	/* Enter/Exit Self Refresh Registers */
-	u32 self_refresh_cmd_7;	/* Enter/Exit Self Refresh Registers */
+	u16 pad_0;		/* Padding for Self Refresh Command Register 0 */
+	u16 self_refresh_cmd_0;	/* Enter/Exit Self Refresh Registers */
+	u16 pad_1;		/* Padding for Self Refresh Command Register 1 */
+	u16 self_refresh_cmd_1;	/* Enter/Exit Self Refresh Registers */
+	u16 pad_2;		/* Padding for Self Refresh Command Register 2 */
+	u16 self_refresh_cmd_2;	/* Enter/Exit Self Refresh Registers */
+	u16 pad_3;		/* Padding for Self Refresh Command Register 3 */
+	u16 self_refresh_cmd_3;	/* Enter/Exit Self Refresh Registers */
+	u16 pad_4;		/* Padding for Self Refresh Command Register 4 */
+	u16 self_refresh_cmd_4;	/* Enter/Exit Self Refresh Registers */
+	u16 pad_5;		/* Padding for Self Refresh Command Register 5 */
+	u16 self_refresh_cmd_5;	/* Enter/Exit Self Refresh Registers */
+	u16 pad_6;		/* Padding for Self Refresh Command Register 6 */
+	u16 self_refresh_cmd_6;	/* Enter/Exit Self Refresh Registers */
+	u16 pad_7;		/* Padding for Self Refresh Command Register 7 */
+	u16 self_refresh_cmd_7;	/* Enter/Exit Self Refresh Registers */
 	u32 DQS_config_offset_count;	/* DQS Config Offset Count */
 	u32 DQS_config_offset_time;	/* DQS Config Offset Time */
 	u32 DQS_delay_status;	/* DQS Delay Status */
@@ -108,6 +116,10 @@ extern void mpc5121_pscgpio_make_gpio(int psc, int pin);
 extern void mpc5121_pscgpio_pin_high(int psc, int pin);
 extern void mpc5121_pscgpio_pin_low(int psc, int pin);
 extern void mpc5121_pscgpio_make_psc(int psc, int pin);
+
+#ifdef CONFIG_PM
+extern int __init mpc512x_pm_init(void);
+#endif
 
 #endif /* __ASM_POWERPC_MPC512x_H__ */
 
