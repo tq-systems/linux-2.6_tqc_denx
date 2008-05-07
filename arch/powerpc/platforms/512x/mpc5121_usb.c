@@ -64,7 +64,7 @@ int usb_platform_dr_init(struct platform_device *pdev)
 
 	/* enable the clock if we haven't already */
 	if (!dr_used) {
-		dr_clk = clk_get(&pdev->dev, "usb0_clk");
+		dr_clk = clk_get(&pdev->dev, "usb2_clk");
 		if (IS_ERR(dr_clk)) {
 			dev_err(&pdev->dev, "usb: clk_get failed\n");
 			return -ENODEV;
