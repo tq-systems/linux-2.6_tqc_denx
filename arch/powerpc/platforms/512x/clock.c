@@ -373,6 +373,15 @@ static struct clk ips_clk = {
 	.div_shift = 23,
 };
 
+static struct clk pata_clk = {
+	.name = "pata_clk",
+	.flags = CLK_HAS_CTRL,
+	.reg = 0,
+	.bit = 28,
+	.calc = unity_clk_calc,
+	.parent = &ips_clk,
+};
+
 static struct clk nfc_clk = {
 	.name = "nfc_clk",
 	.flags = CLK_HAS_CTRL,
@@ -520,6 +529,7 @@ struct clk *rate_clks[] = {
 	&csb_clk,
 	&e300_clk,
 	&ips_clk,
+	&pata_clk,
 	&nfc_clk,
 	&lpc_clk,
 	&mbx_bus_clk,
