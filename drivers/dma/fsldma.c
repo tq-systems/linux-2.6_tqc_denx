@@ -207,6 +207,7 @@ int fsl_dma_chan_request(int channel_id)
 
 	return -EBUSY;
 }
+EXPORT_SYMBOL(fsl_dma_chan_request);
 
 void fsl_dma_free_chan(int channel_num)
 {
@@ -230,6 +231,7 @@ void fsl_dma_free_chan(int channel_num)
 	out_8(&reg->dmacerr, channel_num);
 	out_8(&reg->dmacint, channel_num);
 }
+EXPORT_SYMBOL(fsl_dma_free_chan);
 
 void fsl_dma_enable(int channel_num)
 {
@@ -258,6 +260,7 @@ void fsl_dma_enable(int channel_num)
 	out_8(&reg->dmaserq, channel_num);
 	return;
 }
+EXPORT_SYMBOL(fsl_dma_enable);
 
 void fsl_dma_disable(int channel_num)
 {
@@ -394,6 +397,7 @@ int fsl_dma_config(int channel_num, struct fsl_dma_requestbuf *dma_buf,
 	}
 	return 0;
 }
+EXPORT_SYMBOL(fsl_dma_config);
 
 /* This function is called only when the channel occurs error
  * or has completed transaction.
@@ -500,6 +504,7 @@ int fsl_dma_callback_set(int channel_num, fsl_dma_callback_t callback,
 
 	return 0;
 }
+EXPORT_SYMBOL(fsl_dma_callback_set);
 
 /*
  * Perform a FSL transaction to verify the HW works.
