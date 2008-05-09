@@ -74,6 +74,8 @@ struct aoi_display_offset {
 
 #define FBIOGET_GWINFO		0x46E0
 #define FBIOPUT_GWINFO		0x46E1
+#define MFB_SET_GAMMA		0x80014d01
+#define MFB_GET_GAMMA		0x40014d01
 
 #ifdef __KERNEL__
 #include <linux/spinlock.h>

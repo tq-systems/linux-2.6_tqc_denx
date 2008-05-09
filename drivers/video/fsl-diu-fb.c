@@ -920,6 +920,7 @@ static int fsl_diu_ioctl(struct fb_info *info, unsigned int cmd,
 	struct mfb_chroma_key ck;
 	unsigned char global_alpha;
 	struct aoi_display_offset aoi_d;
+	struct diu *hw = dr.diu_reg;
 
 	DPRINTK("Entered: fsl_diu_ioctl\n");
 	switch (cmd) {
@@ -1012,6 +1013,26 @@ static int fsl_diu_ioctl(struct fb_info *info, unsigned int cmd,
 		break;
 	case FBIOGET_DISPINFO:
 		printk("%s, FBIOGET_DISPINFO:0x%08x\n", __func__, FBIOGET_DISPINFO);
+		break;
+	case MFB_SET_GAMMA:
+		 if (!arg)
+			return -EINVAL;
+		/* set the gamma table */
+		DPRINTK("MFB_SET_GAMMA s\n");
+		if (copy_from_user
+		    ((void *)pool.gamma.vaddr, (void *)arg, 3*256))
+			return -EFAULT;
+		out_be32(&(hw->gamma), pool.gamma.paddr);
+		break;
+	case MFB_GET_GAMMA:
+		 if (!arg)
+			return -EINVAL;
+		/* get the gamma table */
+		DPRINTK("MFB_GET_GAMMA \n");
+		if (copy_to_user
+		    ((void *)arg, (void *)pool.gamma.vaddr, 3*256))
+			return -EFAULT;
+		out_be32(&(hw->gamma), pool.gamma.paddr);
 		break;
 
 	default:
