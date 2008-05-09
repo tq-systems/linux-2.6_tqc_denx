@@ -499,6 +499,9 @@ static int ehci_fsl_drv_suspend(struct platform_device *pdev,
 	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
 	u32 tmp;
 
+	/* DDD printk("%s()\n", __func__); */
+	printk(KERN_INFO "USB Host suspended\n");
+
 	hcd->state = HC_STATE_SUSPENDED;
 	pdev->dev.power.power_state = PMSG_SUSPEND;
 
@@ -515,6 +518,7 @@ static int ehci_fsl_drv_suspend(struct platform_device *pdev,
 
 	/* save EHCI registers */
 	usb_ehci_regs.command = ehci_readl(ehci, &ehci->regs->command);
+	usb_ehci_regs.command &= ~CMD_RUN;
 	usb_ehci_regs.status  = ehci_readl(ehci, &ehci->regs->status);
 	usb_ehci_regs.intr_enable  = ehci_readl(ehci, &ehci->regs->intr_enable);
 	usb_ehci_regs.frame_index  = ehci_readl(ehci, &ehci->regs->frame_index);
@@ -542,6 +546,8 @@ static int ehci_fsl_drv_resume(struct platform_device *pdev)
 	u32 tmp;
 	struct fsl_usb2_platform_data *pdata = pdev->dev.platform_data;
 
+	printk(KERN_INFO "USB Host resumed\n");
+
 	/* set host mode */
 	tmp = USBMODE_CM_HOST | (pdata->es ? USBMODE_ES : 0);
 	ehci_writel(ehci, tmp, hcd->regs + FSL_SOC_USB_USBMODE);
@@ -555,7 +561,6 @@ static int ehci_fsl_drv_resume(struct platform_device *pdev)
 	ehci_writel(ehci, usb_ehci_regs.frame_list, &ehci->regs->frame_list);
 	ehci_writel(ehci, usb_ehci_regs.async_next, &ehci->regs->async_next);
 	ehci_writel(ehci, usb_ehci_regs.configured_flag, &ehci->regs->configured_flag);
-	ehci_writel(ehci, usb_ehci_regs.frame_list, &ehci->regs->frame_list);
 	ehci_writel(ehci, usb_ehci_portsc, &ehci->regs->port_status[0]);
 
 	set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
