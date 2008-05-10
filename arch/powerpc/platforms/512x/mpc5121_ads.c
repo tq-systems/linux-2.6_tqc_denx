@@ -489,7 +489,9 @@ static void __init mpc5121_ads_init_IRQ(void)
 	/*
 	 * Intialize the cpld interrupt host
 	 */
+#if defined(CONFIG_PCI) || defined(CONFIG_TOUCHSCREEN_ADS7846)
 	mpc5121_ads_cpld_pic_init();
+#endif
 }
 
 /*
