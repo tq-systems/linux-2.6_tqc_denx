@@ -78,20 +78,6 @@ static const struct snd_pcm_hardware mpc512x_pcm_hardware = {
 	.fifo_size = 0,
 };
 
-struct mpc512x_pm_reg {
-	u32 psc_sicr;
-	u32 fifo_rximr;
-	u32 fifo_tximr;
-
-	/* Codec registers */
-	u16 master_vol;
-	u16 pcm_out_vol;
-	u16 ext_ctrl;
-	u16 pcm_dac_rate;
-	u16 record_gain;
-	u16 record_sel;
-};
-
 struct mpc512x_runtime_data {
 	int dma_ch;
 	dma_addr_t dev_addr;
@@ -99,7 +85,6 @@ struct mpc512x_runtime_data {
 	dma_addr_t dma_desc_array_phys;
 	int current_period;
 	int stopping;
-	struct mpc512x_pm_reg pmr;
 };
 
 static int mpc512x_pcm_close(struct snd_pcm_substream *substream);
@@ -372,28 +357,12 @@ out:
 static int mpc512x_pcm_suspend(struct platform_device *pdev,
 			       struct snd_soc_cpu_dai *dai)
 {
-	struct snd_pcm_runtime *runtime = dai->runtime;
-	struct mpc512x_runtime_data *rtd = runtime->private_data;
-	struct mpc512x_pm_reg *pmr = &rtd->pmr;
 	struct mpc5121_psc_private *psc_private = dai->private_data;
 	struct mpc52xx_psc *psc = psc_private->psc;
 	struct mpc512x_psc_fifo *fifo;
 
 	fifo = (struct mpc512x_psc_fifo *)
 	    (psc_private->psc + sizeof(struct mpc52xx_psc));
-
-	/* dump registers of codec */
-	pmr->master_vol = mpc5121_ac97_read(NULL, 2);
-	pmr->pcm_out_vol = mpc5121_ac97_read(NULL, 0x18);
-	pmr->ext_ctrl = mpc5121_ac97_read(NULL, 0x2a);
-	pmr->pcm_dac_rate = mpc5121_ac97_read(NULL, 0x2c);
-	pmr->record_gain = mpc5121_ac97_read(NULL, 0x1c);
-	pmr->record_sel = mpc5121_ac97_read(NULL, 0x1a);
-
-	pmr->psc_sicr = in_be32(&psc->sicr);
-
-	pmr->fifo_rximr = in_be32(&fifo->rximr);
-	pmr->fifo_tximr = in_be32(&fifo->tximr);
 
 	/* Disable AC97 controller */
 	out_be32(&psc->sicr, 0);
@@ -411,50 +380,11 @@ static int mpc512x_pcm_suspend(struct platform_device *pdev,
 static int mpc512x_pcm_resume(struct platform_device *pdev,
 			      struct snd_soc_cpu_dai *dai)
 {
-	struct snd_pcm_runtime *runtime = dai->runtime;
-	struct mpc512x_runtime_data *rtd = runtime->private_data;
-	struct mpc512x_pm_reg *pmr = &rtd->pmr;
 	struct mpc5121_psc_private *psc_private = dai->private_data;
-	struct mpc52xx_psc *psc = psc_private->psc;
-	struct mpc512x_psc_fifo *fifo;
 
-	fifo = (struct mpc512x_psc_fifo *)
-	    (psc_private->psc + sizeof(struct mpc52xx_psc));
-
-	/* enable clock */
-	mpc5121_psc_clkinit(psc_private, 1);
-
-	/* initialize FIFO controller */
-	mpc5121_psc_fifo_init(psc_private);
-	out_be32(&fifo->rximr, pmr->fifo_rximr);
-	out_be32(&fifo->tximr, pmr->fifo_tximr);
-
-	/* reset everything */
-	out_8(&psc->command, MPC52xx_PSC_SEL_MODE_REG_1);
-	out_8(&psc->command, MPC52xx_PSC_RST_RX);
-	out_8(&psc->command, MPC52xx_PSC_RST_TX);
-	out_8(&psc->command, MPC52xx_PSC_RST_ERR_STAT);
-	out_8(&psc->command, MPC52xx_PSC_RST_BRK_CHG_INT);
-	out_8(&psc->command, MPC52xx_PSC_STOP_BRK);
-
-	out_be32(&psc->sicr, pmr->psc_sicr);
-	out_be32(&psc->ac97slots, 0x300 << 16 | 0x300);
-
-	/* Reset external AC97 codec */
-	out_8(&psc->op1, 0x02);
-	out_8(&psc->op0, 0x02);
-
-	/* enable rx and tx now */
-	out_8(&psc->command, MPC52xx_PSC_TX_ENABLE | MPC52xx_PSC_RX_ENABLE);
-
-	/* initialize AC97 codec registers */
-	mpc5121_ac97_reset(NULL);
-	mpc5121_ac97_write(NULL, 0x02, pmr->master_vol);
-	mpc5121_ac97_write(NULL, 0x18, pmr->pcm_out_vol);
-	mpc5121_ac97_write(NULL, 0x2a, pmr->ext_ctrl);
-	mpc5121_ac97_write(NULL, 0x2c, pmr->pcm_dac_rate);
-	mpc5121_ac97_write(NULL, 0x1c, pmr->record_gain);
-	mpc5121_ac97_write(NULL, 0x1a, pmr->record_sel);
+	mpc5121_psc_init(&pdev->dev, dai);
+	if (psc_private->format == SND_SOC_DAIFMT_AC97)
+		mpc5121_ac97_reset(NULL);
 
 	return 0;
 }
