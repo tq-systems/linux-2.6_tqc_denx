@@ -464,6 +464,12 @@ static irqreturn_t mscan_isr(int irq, void *dev_id)
 	u8 cantflg, canrflg;
 	irqreturn_t ret = IRQ_NONE;
 
+#if defined(CONFIG_PPC_MPC5121) && defined(CONFIG_PM)
+	/* PM for MPC5121 */
+	extern void mpc512x_pmc_clrevent(void);
+	mpc512x_pmc_clrevent();
+#endif
+
 	if (in_8(&regs->cantier) & MSCAN_TXE) {
 		struct list_head *tmp, *pos;
 
