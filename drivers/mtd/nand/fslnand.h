@@ -19,7 +19,7 @@
 #define __FSLNAND_H__
 
 #ifdef CONFIG_PM_DEBUG
-#define NFC_BASE_ADDR (({BUG_ON(suspended);}),priv->regs)
+#define NFC_BASE_ADDR (({BUG_ON(priv->suspended);}),priv->regs)
 #else
 #define NFC_BASE_ADDR (priv->regs)
 #endif
