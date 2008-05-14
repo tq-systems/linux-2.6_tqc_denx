@@ -536,7 +536,7 @@ static int ad1939_set_dai_sysclk(struct snd_soc_codec_dai *codec_dai,
 	 SNDRV_PCM_RATE_192000)
 
 #define AD1939_FORMATS	\
-	(SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S24_LE)
+	(SNDRV_PCM_FMTBIT_S16_BE | SNDRV_PCM_FMTBIT_S24_BE | SNDRV_PCM_FMTBIT_S32_BE)
 
 struct snd_soc_codec_dai ad1939_dai = {
 	.name = AUDIO_NAME,
