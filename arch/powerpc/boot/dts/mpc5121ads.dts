@@ -348,8 +348,6 @@
 //		// PSC3 in spi mode for MPC5121eADS off board MEDIA touch screen
 //		// connected via connector P6
 //		// Note:  To use this console needs to be set to ttyPSC1
-//		// 	  and the first serial transceiver needs to be disabled
-//		//	  via the UART0_FOFF#(Bit#5) bit in CPLD register 0x15.
 //		spi@11300 {
 //			compatible = "fsl,mpc5121-psc-spi", "fsl,mpc5121-psc";
 //			cell-index = <3>;

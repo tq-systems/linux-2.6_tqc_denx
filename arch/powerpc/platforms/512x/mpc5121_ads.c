@@ -310,6 +310,33 @@ static void __init mpc5121_psc_lowlevel_clock_init(void)
 	iounmap(clockctl);
 }
 
+/*
+ * Disable any unused serial transceivers so they don't interfere with
+ * spi or what ever else they might be used for.
+ */
+static void mpc5121ads_psc_disable_unused_serial(void)
+{
+	struct device_node *np;
+	const u32 *cell_index;
+
+	for_each_compatible_node(np, NULL, "fsl,mpc5121-psc") {
+		cell_index = of_get_property(np, "cell-index", NULL);
+		if (cell_index) {
+			/*
+			 * if not uart then then disable transceiver
+			 */
+			if (!of_device_is_compatible(np,
+				    "fsl,mpc5121-psc-uart")) {
+				if (*cell_index == 3) {
+					mpc5121_ads_cpld_uart_foff(0);
+				} else if (*cell_index == 4) {
+					mpc5121_ads_cpld_uart_foff(1);
+				}
+			}
+		}
+	}
+}
+
 static void __init mpc5121_psc_fifo_init(void)
 {
 	struct device_node *np;
@@ -418,6 +445,7 @@ static void __init mpc5121ads_board_setup(void)
 
 	mpc5121_psc_lowlevel_clock_init();
 	mpc5121_psc_fifo_init();
+	mpc5121ads_psc_disable_unused_serial();
 
 	/*
 	 * turn on i2c interrupts

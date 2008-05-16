@@ -22,7 +22,7 @@ config MPC5121_ADS
 	select DEFAULT_UIMAGE
 	select WANT_DEVICE_TREE
 	select PPC_MPC5121
-	select MPC5121_ADS_CPLD if (PCI || TOUCHSCREEN_ADS7846)
+	select MPC5121_ADS_CPLD
 	help
 	  This option enables support for the MPC5121E ADS board.
 	default n

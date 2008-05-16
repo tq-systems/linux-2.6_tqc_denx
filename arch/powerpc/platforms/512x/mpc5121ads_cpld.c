@@ -41,6 +41,7 @@ struct cpld_pic {
 	u8 route;
 	u8 misc_mask;
 	u8 misc_status;
+	u8 misc_control;
 } __iomem *cpld_regs;
 
 static void __iomem *irq_to_pic_mask(unsigned int irq)
@@ -179,4 +180,16 @@ int
 mpc5121ads_get_pendown_state(void)
 {
 	return (cpld_regs->misc_status & 0x10) == 0;
+}
+
+
+/* disable rs232 transceivers */
+void
+mpc5121_ads_cpld_uart_foff(int uart)
+{
+	/*
+	 * xx0xxxxx turns off transceiver for uart 0
+	 * xxx0xxxx turns off transceiver for uart 1
+	 */
+	clrbits8(&cpld_regs->misc_control, 0x20 >> uart);
 }
