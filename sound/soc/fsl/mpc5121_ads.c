@@ -27,6 +27,7 @@
 
 struct mpc52xx_psc *psc_reg_priv;
 
+
 /**
  * mpc5121_ads_startup: program the board with various hardware parameters
  *
@@ -68,8 +69,7 @@ static int mpc5121_ads_startup(struct snd_pcm_substream *substream)
 	 * Tell the CPU driver what the clock frequency is, and whether it's a
 	 * slave or master.
 	 */
-	if (cpu_dai->dai_ops.set_sysclk &&
-		machine_data->dai_format != SND_SOC_DAIFMT_AC97) {
+	if (cpu_dai->dai_ops.set_sysclk) {
 		ret = cpu_dai->dai_ops.set_sysclk(cpu_dai, 0,
 						  machine_data->clk_frequency,
 						  machine_data->
@@ -85,8 +85,7 @@ static int mpc5121_ads_startup(struct snd_pcm_substream *substream)
 	 * Tell the codec driver what the MCLK frequency is, and whether it's
 	 * a slave or master.
 	 */
-	if (codec_dai->dai_ops.set_sysclk &&
-		machine_data->dai_format != SND_SOC_DAIFMT_AC97) {
+	if (codec_dai->dai_ops.set_sysclk) {
 		ret = codec_dai->dai_ops.set_sysclk(codec_dai, 0,
 						    machine_data->clk_frequency,
 						    machine_data->
@@ -162,47 +161,18 @@ static int mpc5121_ads_probe(struct of_device *ofdev,
 		goto error;
 	}
 
-	if (strcasecmp(sprop, "i2s-slave") == 0) {
-		machine_data->dai_format = SND_SOC_DAIFMT_I2S;
-		machine_data->codec_clk_direction = SND_SOC_CLOCK_OUT;
-		machine_data->cpu_clk_direction = SND_SOC_CLOCK_IN;
-	} else if (strcasecmp(sprop, "i2s-master") == 0) {
-		machine_data->dai_format = SND_SOC_DAIFMT_I2S;
-		machine_data->codec_clk_direction = SND_SOC_CLOCK_IN;
-		machine_data->cpu_clk_direction = SND_SOC_CLOCK_OUT;
-	} else if (strcasecmp(sprop, "lj-slave") == 0) {
-		machine_data->dai_format = SND_SOC_DAIFMT_LEFT_J;
-		machine_data->codec_clk_direction = SND_SOC_CLOCK_OUT;
-		machine_data->cpu_clk_direction = SND_SOC_CLOCK_IN;
-	} else if (strcasecmp(sprop, "lj-master") == 0) {
-		machine_data->dai_format = SND_SOC_DAIFMT_LEFT_J;
-		machine_data->codec_clk_direction = SND_SOC_CLOCK_IN;
-		machine_data->cpu_clk_direction = SND_SOC_CLOCK_OUT;
-	} else if (strcasecmp(sprop, "rj-slave") == 0) {
-		machine_data->dai_format = SND_SOC_DAIFMT_RIGHT_J;
-		machine_data->codec_clk_direction = SND_SOC_CLOCK_OUT;
-		machine_data->cpu_clk_direction = SND_SOC_CLOCK_IN;
-	} else if (strcasecmp(sprop, "rj-master") == 0) {
-		machine_data->dai_format = SND_SOC_DAIFMT_RIGHT_J;
-		machine_data->codec_clk_direction = SND_SOC_CLOCK_IN;
-		machine_data->cpu_clk_direction = SND_SOC_CLOCK_OUT;
-	} else if (strcasecmp(sprop, "ac97-slave") == 0) {
-		machine_data->dai_format = SND_SOC_DAIFMT_AC97;
-		machine_data->codec_clk_direction = SND_SOC_CLOCK_OUT;
-		machine_data->cpu_clk_direction = SND_SOC_CLOCK_IN;
-	} else {
+	/* This driver is for ADS5121 which only has AC97 */
+	if (strcasecmp(sprop, "ac97-slave")) {
 		dev_err(&ofdev->dev,
 			"unrecognized fsl,mode property \"%s\"\n", sprop);
 		ret = -EINVAL;
 		goto error;
 	}
 
-	if (!machine_data->clk_frequency &&
-		machine_data->dai_format != SND_SOC_DAIFMT_AC97) {
-		dev_err(&ofdev->dev, "unknown clock frequency\n");
-		ret = -EINVAL;
-		goto error;
-	}
+	machine_data->dai_format = SND_SOC_DAIFMT_AC97;
+	machine_data->codec_clk_direction = SND_SOC_CLOCK_OUT;
+	machine_data->cpu_clk_direction = SND_SOC_CLOCK_IN;
+	machine_data->clk_frequency = 24576000; 
 
 	/* Read the PSC information from the device tree */
 	ret = of_address_to_resource(np, 0, &res);
@@ -215,10 +185,8 @@ static int mpc5121_ads_probe(struct of_device *ofdev,
 		dev_err(&ofdev->dev, "invalid PSC address\n");
 		goto error;
 	}
-
 	psc_info->phys = res.start;
 	psc_info->psc = ioremap(psc_info->phys, res.end - res.start + 1);
-
 	psc_reg_priv = psc_info->psc;
 	if (!psc_info->psc) {
 		dev_err(&ofdev->dev, "could not map PSC address %x\n",
@@ -248,8 +216,6 @@ static int mpc5121_ads_probe(struct of_device *ofdev,
 	 * PSC FIFO data register are at
 	 * 	rx offset is 0xfc
 	 * 	tx offset is 0xbc
-	 *
-	 *
 	 */
 	dma_config.rx_dma_ch_nr = psc_info->id;
 	dma_config.tx_dma_ch_nr = psc_info->id + 12;
@@ -297,9 +263,10 @@ static int mpc5121_ads_probe(struct of_device *ofdev,
 		goto error;
 	}
 
+	machine_data->sound_devdata.platform = &mpc512x_soc_platform;
 	machine_data->sound_devdata.machine = &mpc5121_ads_machine;
 	machine_data->sound_devdata.codec_dev = &soc_codec_dev_ac97;
-	machine_data->sound_devdata.platform = &mpc512x_soc_platform;
+	machine_data->sound_devdata.codec_data = NULL;
 	sound_device->dev.platform_data = machine_data;
 
 	/* Set the platform device and ASoC device to point to each other */

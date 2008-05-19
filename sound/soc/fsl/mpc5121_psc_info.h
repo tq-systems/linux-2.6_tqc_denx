@@ -38,6 +38,7 @@ struct mpc5121_psc_info {
  * @capture: the number of capture streams opened
  * @cpu_dai: the CPU DAI for this device
  * @format: the format of link
+ * @clk_dir: clock direction
  */
 struct mpc5121_psc_private {
 	char name[8];
@@ -53,6 +54,8 @@ struct mpc5121_psc_private {
 	int rx_dma_gran;
 	int tx_dma_gran;
 	int format;
+	int clk_dir;
+	int clk_rate;
 };
 
 /**

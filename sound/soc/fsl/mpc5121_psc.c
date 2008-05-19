@@ -31,32 +31,27 @@
 
 #include "mpc5121_psc_info.h"
 
-#ifdef DEBUG
-#define PSTUB(message, a...) 						\
-    do {								\
-	    printk(KERN_ERR "STUB here (%s, %d): %s: should be ",	\
-		   __FILE__, __LINE__, __FUNCTION__);			\
-	    printk(message, ## a);					\
-    } while (0)
-#else
-#define PSTUB(message, a...)
-#endif
 /*
- * This driver currently only supports the PSC running in AC97 slave mode,
- * which means the codec determines the sample rate.  Therefore, we tell
- * ALSA that we support all rates and let the codec driver decide what rates
- * are really supported.
+ * Three scenarios:
+ * 	AC97: PSC is slave so claim support for all speeds and let codec
+ * 	determine the rate.
+ * 	ICS Slave: PSC is slave so identical above.
+ * 	ICS Master: PSC is master which can do any speed
+ * 	
+ * 	So for all three modes 8000-48000 continuous is ok
  */
-#define PSC_AC97_RATES SNDRV_PCM_RATE_8000_48000
+#define PSC_SAMPLE_RATES SNDRV_PCM_RATE_8000_48000
 
 /*
- * bigendian only
- * also 24 bit is not supported because the psc's notion of what
- * 3 bytes in a 32 bit value should be used is wrong
+ * AC97 sample width is upto 20 bits, the next unpacked size if 32.
+ * I2S works for 8, 16 and 32
  */
-#define PSC_AC97_FORMATS (SNDRV_PCM_FMTBIT_S32_BE | \
-			 SNDRV_PCM_FMTBIT_S16_BE | \
-			 SNDRV_PCM_FMTBIT_S8)
+#define PSC_AC97_FORMATS SNDRV_PCM_FMTBIT_S32_BE
+#define PSC_I2S_FORMATS ( 	\
+    SNDRV_PCM_FMTBIT_S32_BE |	\
+    SNDRV_PCM_FMTBIT_S16_BE | 	\
+    SNDRV_PCM_FMTBIT_S8 | 	\
+    0)
 
 struct {
 	int tot;
@@ -136,7 +131,7 @@ int mpc5121_psc_clkinit(struct mpc5121_psc_private *psc_private, int on)
 	clk = psc_private->clk = clk_get(NULL, clockname);
 	if (IS_ERR(psc_private->clk)) {
 		printk(KERN_ERR "%s: can't probe clock"
-			" source for AC97.\n", __FUNCTION__);
+			" source for PSC SOC.\n", __FUNCTION__);
 		psc_private->clk = NULL;
 		return PTR_ERR(clk);
 	}
@@ -222,42 +217,55 @@ int mpc5121_psc_init(struct device *dev, struct snd_soc_cpu_dai *cpu_dai)
 		out_8(&psc->command, MPC52xx_PSC_RST_BRK_CHG_INT);
 		out_8(&psc->command, MPC52xx_PSC_STOP_BRK);
 
-		/*
-		 * set up the psc for AC97 mode
-		 */
-		out_be32(&psc->sicr,
-			0x03000000 | /* SIM = 0011   : AC97 mode */
-			0x00010000 | /* EnAC97 = 1   : Normal mode */
-			0x00000100 | /* Outputs always enabled */
-			0);
+		switch(psc_private->format) {
+		case SND_SOC_DAIFMT_AC97:
+			/*
+			 * set up the psc for AC97 mode
+			 */
+			out_be32(&psc->sicr,
+				0x03000000 | /* SIM = 0011   : AC97 mode */
+				0x00010000 | /* EnAC97 = 1   : Normal mode */
+				0x00000100 | /* Outputs always enabled */
+				0);
 
-		out_be32(&psc->ac97slots,
-			0x300 << 16  | /* Enable tx timeslot 3,4 */
-			0x300	     | /* Enable rx timeslot 3,4 */
-			0);
+			out_be32(&psc->ac97slots,
+				0x300 << 16  | /* Enable tx timeslot 3,4 */
+				0x300	     | /* Enable rx timeslot 3,4 */
+				0);
 
-		/*
-		 * Reset external AC97 codec
-		 * Some codecs go into test mode if the data or sync lines
-		 * are high when the reset line goes high.
-		 * Avoid that by forcing them to GPIOs and driving them
-		 * low during reset.
-		 */
-		mpc5121_pscgpio_make_gpio(cpu_dai->id, 1); 
-		mpc5121_pscgpio_pin_low(cpu_dai->id, 1); 
-		mpc5121_pscgpio_make_gpio(cpu_dai->id, 2); 
-		mpc5121_pscgpio_pin_low(cpu_dai->id, 2); 
+			/*
+			 * Reset external AC97 codec
+			 * Some codecs go into test mode if the data or sync lines
+			 * are high when the reset line goes high.
+			 * Avoid that by forcing them to GPIOs and driving them
+			 * low during reset.
+			 */
+			mpc5121_pscgpio_make_gpio(cpu_dai->id, 1); 
+			mpc5121_pscgpio_pin_low(cpu_dai->id, 1); 
+			mpc5121_pscgpio_make_gpio(cpu_dai->id, 2); 
+			mpc5121_pscgpio_pin_low(cpu_dai->id, 2); 
 
-		out_8(&psc->op1, 0x02); iosync();
-		udelay(1);
-		out_8(&psc->op0, 0x02); iosync();
-		udelay(1);
+			out_8(&psc->op1, 0x02); iosync();
+			udelay(1);
+			out_8(&psc->op0, 0x02); iosync();
+			udelay(1);
 
-		/*
-		 * Reset complete, change lines back to PSC signals.
-		 */
-		mpc5121_pscgpio_make_psc(cpu_dai->id, 1); 
-		mpc5121_pscgpio_make_psc(cpu_dai->id, 2); 
+			/*
+			 * Reset complete, change lines back to PSC signals.
+			 */
+			mpc5121_pscgpio_make_psc(cpu_dai->id, 1); 
+			mpc5121_pscgpio_make_psc(cpu_dai->id, 2); 
+			break;
+		case SND_SOC_DAIFMT_I2S:
+			out_be32(&psc->sicr,
+				0x20000000 | /* DTS = 1      : Delay 1 bit time (I2S) */
+				0x0f000000 | /* SIM = 1111   : Codec 32 bit */
+				0x00400000 | /* I2S = 1      : I2S */
+				0x00200000 | /* CLKPOL = 1   : */
+				0x00000100 | /* Outputs always enabled */
+				0);
+			break;
+		}
 
 		/* enable the fifos */
 		mpc5121_psc_fifo_enable(psc_private);
@@ -321,14 +329,61 @@ static int mpc5121_psc_prepare(struct snd_pcm_substream *substream)
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct mpc5121_psc_private *psc_private =
 	    rtd->dai->cpu_dai->private_data;
+	struct mpc52xx_psc __iomem *psc = psc_private->psc;
+	int width;
+	int sicr;
+	int bclkdiv;
+	int ccr;
 
-	void __iomem *psc = psc_private->psc;
+	switch(psc_private->format) {
+	case SND_SOC_DAIFMT_AC97:
+		/* nothing to do, original init is good */
+		break;
+	case SND_SOC_DAIFMT_I2S:
+		/* reset everything */
+		out_8(&psc->command, MPC52xx_PSC_SEL_MODE_REG_1);
+		out_8(&psc->command, MPC52xx_PSC_RST_RX);
+		out_8(&psc->command, MPC52xx_PSC_RST_TX);
+		out_8(&psc->command, MPC52xx_PSC_RST_ERR_STAT);
+		out_8(&psc->command, MPC52xx_PSC_STOP_BRK);
 
-	(void)runtime;
-	(void)psc;
+		/* format */
+		sicr = 0x20000000  | /* DTS = 1      : Delay 1 bit time (I2S) */
+			(psc_private->clk_dir == SND_SOC_CLOCK_OUT ?
+			0x00800000 : /* GenClk = 1   : master */
+			0x00000000)| /* GenClk = 0   : slave */
+			0x00400000 | /* I2S = 1      : I2S */
+			0x00200000 | /* CLKPOL = 1   : */
+			0x00000100 | /* Outputs always enabled */
+			0;
 
-	PSTUB("setting word length to %d for %p\n",
-	      snd_pcm_format_width(runtime->format), psc);
+		width = snd_pcm_format_width(runtime->format);
+		switch (width) {
+		case 8:
+			sicr |= 0x01000000;
+			break;
+		case 16:
+			sicr |= 0x02000000;
+			break;
+		case 32:
+			sicr |= 0x0f000000;
+			break;
+		}
+		out_be32(&psc->sicr, sicr);
+
+
+		/* rate based on 64 bit clks per frame */
+		bclkdiv = psc_private->clk_rate / (runtime->rate * 64) - 1;
+
+		ccr = ((64-1) << 24)
+		    | ((bclkdiv & 0xff) << 16)
+		    | (((bclkdiv >> 8) & 0xff) << 8);
+		out_be32(&psc->ccr, ccr);
+		out_8(&psc->ctur, (64/2)-1);
+
+		out_8(&psc->command, MPC52xx_PSC_TX_ENABLE | MPC52xx_PSC_RX_ENABLE);
+		break;
+	}
 
 	return 0;
 }
@@ -408,10 +463,36 @@ static void mpc5121_psc_shutdown(struct snd_pcm_substream *substream)
 		void __iomem *psc = psc_private->psc;
 
 		(void)psc;
-		PSTUB("shutting down %p\n", psc);
+		printk(KERN_INFO "psc shutting down %p\n", psc);
 
 		free_irq(psc_private->irq, psc_private);
 	}
+}
+
+/**
+ * mpc5121_psc_set_sysclk: set the clock frequency and direction
+ *
+ * This function is called by the machine driver to tell us what the clock
+ * frequency and direction are.
+ *
+ * When runniing as a clock slave (SND_SOC_CLOCK_IN) then we don't care about
+ * the rate.  
+ *
+ * When running as a clock master (SND_SOC_CLOCK_OUT) then we use the clock
+ * rate obtained from the clock driver via clk_get_rate.
+ *
+ * @clk_id: reserved, should be zero
+ * @freq: the frequency of the given clock ID, currently ignored
+ * @dir: SND_SOC_CLOCK_IN (clock slave) or SND_SOC_CLOCK_OUT (clock master)
+ */
+static int mpc5121_psc_set_sysclk(struct snd_soc_cpu_dai *mpc5121_psc_dai,
+				  int clk_id, unsigned int freq, int dir)
+{
+	struct mpc5121_psc_private *psc_private =
+	    container_of(mpc5121_psc_dai, struct mpc5121_psc_private, cpu_dai);
+	
+	psc_private->clk_dir = dir;
+	return 0;
 }
 
 /**
@@ -420,14 +501,25 @@ static void mpc5121_psc_shutdown(struct snd_pcm_substream *substream)
  * This function is called by the machine driver to tell us what serial
  * format to use.
  *
- * Currently, only AC97 is supported.
+ * Currently AC97 and I2S are supported
  *
  * @format: one of SND_SOC_DAIFMT_xxx
  */
-static int mpc5121_psc_set_fmt(struct snd_soc_cpu_dai *cpu_dai,
+static int mpc5121_psc_set_fmt(struct snd_soc_cpu_dai *mpc5121_psc_dai,
 			       unsigned int format)
 {
-	return (format == SND_SOC_DAIFMT_AC97) ? 0 : -EINVAL;
+	struct mpc5121_psc_private *psc_private =
+	    container_of(mpc5121_psc_dai, struct mpc5121_psc_private, cpu_dai);
+
+	switch (format & SND_SOC_DAIFMT_FORMAT_MASK) {
+	    case SND_SOC_DAIFMT_AC97:
+	    case SND_SOC_DAIFMT_I2S:
+		break;
+	    default:
+		return -EINVAL;
+	}
+	psc_private->format = format;
+	return 0;
 }
 
 /**
@@ -438,13 +530,13 @@ static struct snd_soc_cpu_dai mpc5121_psc_dai_template = {
 		     /* The PSC does not support monaural audio. */
 		     .channels_min = 2,
 		     .channels_max = 2,
-		     .rates = PSC_AC97_RATES,
+		     .rates = PSC_SAMPLE_RATES,
 		     .formats = PSC_AC97_FORMATS,
 		     },
 	.capture = {
 		    .channels_min = 2,
 		    .channels_max = 2,
-		    .rates = PSC_AC97_RATES,
+		    .rates = PSC_SAMPLE_RATES,
 		    .formats = PSC_AC97_FORMATS,
 		    },
 	.ops = {
@@ -454,6 +546,7 @@ static struct snd_soc_cpu_dai mpc5121_psc_dai_template = {
 		.trigger = mpc5121_psc_trigger,
 		},
 	.dai_ops = {
+		    .set_sysclk = mpc5121_psc_set_sysclk,
 		    .set_fmt = mpc5121_psc_set_fmt,
 		    },
 };
@@ -480,6 +573,11 @@ struct snd_soc_cpu_dai *mpc5121_psc_create_dai(struct mpc5121_psc_info
 	}
 	memcpy(&psc_private->cpu_dai, &mpc5121_psc_dai_template,
 	       sizeof(struct snd_soc_cpu_dai));
+
+	if (ads_data->dai_format == SND_SOC_DAIFMT_I2S) {
+		psc_private->cpu_dai.playback.formats = PSC_I2S_FORMATS;
+		psc_private->cpu_dai.capture.formats = PSC_I2S_FORMATS;
+	}
 
 	mpc5121_psc_dai = &psc_private->cpu_dai;
 
