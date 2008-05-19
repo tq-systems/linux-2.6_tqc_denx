@@ -130,10 +130,25 @@ static struct irq_host_ops cpld_pic_host_ops = {
 };
 
 /* public */
-void __init mpc5121_ads_cpld_pic_init(void)
+void __init mpc5121_ads_cpld_map(void)
 {
 	struct device_node *np = NULL;
+
+	np = of_find_compatible_node(NULL, NULL, "fsl,mpc5121ads-cpld-pic");
+	if (!np) {
+		printk(KERN_ERR "CPLD PIC init: can not find cpld-pic node\n");
+		return;
+	}
+
+	cpld_regs = of_iomap(np, 0);
+	of_node_put(np);
+}
+
+/* public */
+void __init mpc5121_ads_cpld_pic_init(void)
+{
 	unsigned int cascade_irq;
+	struct device_node *np = NULL;
 
 	pr_debug("cpld_ic_init\n");
 
@@ -143,7 +158,6 @@ void __init mpc5121_ads_cpld_pic_init(void)
 		return;
 	}
 
-	cpld_regs = of_iomap(np, 0);
 	if (!cpld_regs)
 		goto end;
 
@@ -191,5 +205,6 @@ mpc5121_ads_cpld_uart_foff(int uart)
 	 * xx0xxxxx turns off transceiver for uart 0
 	 * xxx0xxxx turns off transceiver for uart 1
 	 */
-	clrbits8(&cpld_regs->misc_control, 0x20 >> uart);
+	if (cpld_regs)
+		clrbits8(&cpld_regs->misc_control, 0x20 >> uart);
 }

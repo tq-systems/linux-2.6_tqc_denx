@@ -430,6 +430,10 @@ static void __init mpc5121ads_board_setup(void)
 	void __iomem *i2cctl;
 
 	/*
+	 * cpld regs are needed early
+	 */
+	mpc5121_ads_cpld_map();
+	/*
 	 * io pad config
 	 */
 	np = of_find_compatible_node(NULL, NULL, "fsl,mpc5121-ioctl");
@@ -499,7 +503,6 @@ static void __init mpc5121_ads_declare_of_platform_devices(void)
 static void __init mpc5121_ads_init_IRQ(void)
 {
 	struct device_node *np;
-	extern void mpc5121_ads_cpld_pic_init(void);
 
 	np = of_find_compatible_node(NULL, NULL, "fsl,ipic");
 	if (!np)
