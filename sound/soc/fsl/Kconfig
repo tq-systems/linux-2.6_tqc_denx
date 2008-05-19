@@ -19,4 +19,12 @@ config SND_SOC_MPC5121_ADS
 	  MPC5121ADS, please check your hardware to learn which type of codec
 	  is used, and describe it correctly in device tree.
 
+config SND_SOC_MPC5121_I2S
+	bool "ALSA SoC for MPC5121e with an AD1938 I2S codec"
+	depends on SND_SOC_MPC5121
+        select SND_SOC_AD1939
+	help
+	  Say Y if you want to enable audio using the AD1938 I2S codec on a
+	  modified MPC5121ADS board.
+
 endmenu

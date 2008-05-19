@@ -383,8 +383,12 @@ static int mpc512x_pcm_resume(struct platform_device *pdev,
 	struct mpc5121_psc_private *psc_private = dai->private_data;
 
 	mpc5121_psc_init(&pdev->dev, dai);
+#ifdef CONFIG_SND_SOC_MPC5121_ADS
 	if (psc_private->format == SND_SOC_DAIFMT_AC97)
 		mpc5121_ac97_reset(NULL);
+#else
+	(void)psc_private;
+#endif
 
 	return 0;
 }
