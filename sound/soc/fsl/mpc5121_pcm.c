@@ -354,6 +354,7 @@ out:
 }
 
 #ifdef CONFIG_PM
+unsigned short headphone;
 static int mpc512x_pcm_suspend(struct platform_device *pdev,
 			       struct snd_soc_cpu_dai *dai)
 {
@@ -363,6 +364,11 @@ static int mpc512x_pcm_suspend(struct platform_device *pdev,
 
 	fifo = (struct mpc512x_psc_fifo *)
 	    (psc_private->psc + sizeof(struct mpc52xx_psc));
+
+#ifdef CONFIG_SND_SOC_MPC5121_ADS
+	if (psc_private->format == SND_SOC_DAIFMT_AC97)
+		headphone = mpc5121_ac97_read(NULL, 4);
+#endif
 
 	/* Disable AC97 controller */
 	out_be32(&psc->sicr, 0);
@@ -390,6 +396,7 @@ static int mpc512x_pcm_resume(struct platform_device *pdev,
 	(void)psc_private;
 #endif
 
+	mpc5121_ac97_write(NULL, 4, headphone);
 	return 0;
 }
 #else
