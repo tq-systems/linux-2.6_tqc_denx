@@ -8,23 +8,28 @@ config SND_SOC_MPC5121
 	  Say Y if you want to add support for codecs attached to a PSC running
 	  in I2S/AC97 mode on an MPC5121
 
-config SND_SOC_MPC5121_ADS
-	bool "ALSA SoC support for the Freescale MPC5121ADS board in AC97 mode"
+choice 
+	prompt "ADS5121 Codec Type"
 	depends on SND_SOC_MPC5121
+	default SND_SOC_MPC5121_ADS
+
+config SND_SOC_MPC5121_ADS
+	bool "ADS5121 board with AC97 codec"
 	select SND_SOC_AC97_CODEC
         select SND_AC97_CODEC
-	default y if PPC_MPC512x
 	help
 	  Say Y if you want to enable audio using the LM4550B AC97 codec on a
 	  MPC5121ADS, please check your hardware to learn which type of codec
 	  is used, and describe it correctly in device tree.
 
 config SND_SOC_MPC5121_I2S
-	bool "ALSA SoC for MPC5121e with an AD1938 I2S codec"
-	depends on SND_SOC_MPC5121
+	bool "ADS5121 board with AD1938 I2S codec"
         select SND_SOC_AD1939
 	help
 	  Say Y if you want to enable audio using the AD1938 I2S codec on a
 	  modified MPC5121ADS board.
+
+endchoice
+
 
 endmenu
