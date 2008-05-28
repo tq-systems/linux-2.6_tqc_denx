@@ -392,11 +392,11 @@ static int mpc512x_pcm_resume(struct platform_device *pdev,
 #ifdef CONFIG_SND_SOC_MPC5121_ADS
 	if (psc_private->format == SND_SOC_DAIFMT_AC97)
 		mpc5121_ac97_reset(NULL);
+	mpc5121_ac97_write(NULL, 4, headphone);
 #else
 	(void)psc_private;
 #endif
 
-	mpc5121_ac97_write(NULL, 4, headphone);
 	return 0;
 }
 #else
