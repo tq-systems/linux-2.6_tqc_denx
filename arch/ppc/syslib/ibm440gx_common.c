@@ -204,7 +204,9 @@ void __init ibm440gx_l2c_enable(void){
 
 	asm volatile ("sync; isync" ::: "memory");
 	local_irq_restore(flags);
+#if defined(CONFIG_440SP) || defined(CONFIG_440SPE)
 	ppc_md.l2cache_inv_range = invalidate_l2cache_range;
+#endif
 }
 
 /* Disable L2 cache */
