@@ -34,4 +34,6 @@ config MXC_IRQ_PRIOR
 	  requirements for timing.
 	  Say N here, unless you have a specialized requirement.
 
+config MXC_ULPI
+	bool
 endif

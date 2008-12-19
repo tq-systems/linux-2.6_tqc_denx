@@ -32,6 +32,7 @@ choice
 config MACH_PCM970_BASEBOARD
 	prompt "PHYTEC PCM970 development board"
 	bool
+	select MXC_ULPI
 	help
 	  This adds board specific devices that can be found on Phytec's
 	  PCM970 evaluation board.
