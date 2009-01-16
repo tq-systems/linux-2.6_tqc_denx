@@ -21,5 +21,11 @@ config MACH_MX31LITE
 	  Include support for MX31 LITEKIT platform. This includes specific
 	  configurations for the board and its peripherals.
 
-endmenu
+config MACH_QONG
+	bool "Support Dave/DENX QongEVB-LITE platform"
+	default n
+	help
+	  Include support for Dave/DENX QongEVB-LITE platform. This includes
+	  specific configurations for the board and its peripherals.
 
+endmenu
