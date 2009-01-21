@@ -36,6 +36,7 @@
 #include <mach/board-qong.h>
 #include <mach/imx-uart.h>
 #include <mach/iomux-mx3.h>
+#include <mach/mxc_nand.h>
 #include "devices.h"
 #include "qong_fpga.h"
 
@@ -111,6 +112,18 @@ static struct platform_device qong_nor_mtd_device = {
 static void qong_init_nor_mtd(void)
 {
 	(void)platform_device_register(&qong_nor_mtd_device);
+}
+
+/* MTD NAND flash */
+
+static struct mxc_nand_platform_data qong_nand_board_info = {
+	.width = 1,
+	.hw_ecc = 1,
+};
+
+static void mxc_init_nand_mtd(void)
+{
+	mxc_register_device(&mxc_nand_device, &qong_nand_board_info);
 }
 
 /*
@@ -264,6 +277,7 @@ static void __init mxc_board_init(void)
 {
 	mxc_init_imx_uart();
 	qong_init_nor_mtd();
+	mxc_init_nand_mtd();
 	qong_init_fpga();
 }
 
