@@ -24,6 +24,7 @@ config MACH_MX31LITE
 config MACH_QONG
 	bool "Support Dave/DENX QongEVB-LITE platform"
 	default n
+	select MXC_ULPI
 	help
 	  Include support for Dave/DENX QongEVB-LITE platform. This includes
 	  specific configurations for the board and its peripherals.
