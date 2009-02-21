@@ -119,6 +119,81 @@ struct platform_device mxc_uart_device4 = {
 	.num_resources = ARRAY_SIZE(uart4),
 };
 
+static u64 otg_dmamask = ~(u32)0;
+
+static struct resource mxc_otg_resources[] = {
+	{
+		.start = OTG_BASE_ADDR,
+		.end = OTG_BASE_ADDR + 0x1ff,
+		.flags = IORESOURCE_MEM,
+	}, {
+		.start = MXC_INT_USB3,
+		.end = MXC_INT_USB3,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device mxc_otg = {
+	.name = "mxc-ehci",
+	.id = 0,
+	.dev = {
+		.coherent_dma_mask = 0xffffffff,
+		.dma_mask = &otg_dmamask,
+	},
+	.resource = mxc_otg_resources,
+	.num_resources = ARRAY_SIZE(mxc_otg_resources),
+};
+
+static u64 usbh1_dmamask = ~(u32)0;
+
+static struct resource mxc_usbh1_resources[] = {
+	{
+		.start = OTG_BASE_ADDR + 0x200,
+		.end = OTG_BASE_ADDR + 0x3ff,
+		.flags = IORESOURCE_MEM,
+	}, {
+		.start = MXC_INT_USB1,
+		.end = MXC_INT_USB1,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device mxc_usbh1 = {
+	.name = "mxc-ehci",
+	.id = 1,
+	.dev = {
+		.coherent_dma_mask = 0xffffffff,
+		.dma_mask = &usbh1_dmamask,
+	},
+	.resource = mxc_usbh1_resources,
+	.num_resources = ARRAY_SIZE(mxc_usbh1_resources),
+};
+
+static u64 usbh2_dmamask = ~(u32)0;
+
+static struct resource mxc_usbh2_resources[] = {
+	{
+		.start = OTG_BASE_ADDR + 0x400,
+		.end = OTG_BASE_ADDR + 0x5ff,
+		.flags = IORESOURCE_MEM,
+	}, {
+		.start = MXC_INT_USB2,
+		.end = MXC_INT_USB2,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device mxc_usbh2 = {
+	.name = "mxc-ehci",
+	.id = 2,
+	.dev = {
+		.coherent_dma_mask = 0xffffffff,
+		.dma_mask = &usbh2_dmamask,
+	},
+	.resource = mxc_usbh2_resources,
+	.num_resources = ARRAY_SIZE(mxc_usbh2_resources),
+};
+
 /* GPIO port description */
 static struct mxc_gpio_port imx_gpio_ports[] = {
 	[0] = {
