@@ -24,6 +24,7 @@
 #include <linux/mtd/physmap.h>
 #include <linux/mtd/nand.h>
 #include <linux/gpio.h>
+#include <linux/delay.h>
 
 #include <mach/hardware.h>
 #include <asm/mach-types.h>
@@ -37,6 +38,8 @@
 #include <mach/imx-uart.h>
 #include <mach/iomux-mx3.h>
 #include <mach/mxc_nand.h>
+#include <mach/mxc_ehci.h>
+#include <mach/ulpi.h>
 #include "devices.h"
 #include "qong_fpga.h"
 
@@ -244,6 +247,60 @@ static int __init qong_init_fpga(void)
 	return 0;
 }
 
+static int qong_usbh2_init(struct platform_device *pdev)
+{
+	unsigned int tmp;
+
+	tmp = readl(IO_ADDRESS(IOMUXC_BASE_ADDR + 0x8));
+	tmp |= 1 << 11;
+	writel(tmp, IO_ADDRESS(IOMUXC_BASE_ADDR + 0x8));
+
+	mxc_iomux_mode(IOMUX_MODE(MX31_PIN_USBH2_CLK, IOMUX_CONFIG_FUNC));
+	mxc_iomux_mode(IOMUX_MODE(MX31_PIN_USBH2_DIR, IOMUX_CONFIG_FUNC));
+	mxc_iomux_mode(IOMUX_MODE(MX31_PIN_USBH2_NXT, IOMUX_CONFIG_FUNC));
+	mxc_iomux_mode(IOMUX_MODE(MX31_PIN_USBH2_STP, IOMUX_CONFIG_FUNC));
+	mxc_iomux_mode(IOMUX_MODE(MX31_PIN_USBH2_DATA0, IOMUX_CONFIG_FUNC));
+	mxc_iomux_mode(IOMUX_MODE(MX31_PIN_USBH2_DATA1, IOMUX_CONFIG_FUNC));
+	mxc_iomux_mode(IOMUX_MODE(MX31_PIN_STXD3, IOMUX_CONFIG_FUNC));
+	mxc_iomux_mode(IOMUX_MODE(MX31_PIN_SRXD3, IOMUX_CONFIG_FUNC));
+	mxc_iomux_mode(IOMUX_MODE(MX31_PIN_SCK3, IOMUX_CONFIG_FUNC));
+	mxc_iomux_mode(IOMUX_MODE(MX31_PIN_SFS3, IOMUX_CONFIG_FUNC));
+	mxc_iomux_mode(IOMUX_MODE(MX31_PIN_STXD6, IOMUX_CONFIG_FUNC));
+	mxc_iomux_mode(IOMUX_MODE(MX31_PIN_SRXD6, IOMUX_CONFIG_FUNC));
+
+#define H2_PAD_CFG (PAD_CTL_DRV_MAX | PAD_CTL_SRE_FAST | PAD_CTL_HYS_CMOS | PAD_CTL_ODE_CMOS | PAD_CTL_100K_PU)
+	mxc_iomux_set_pad(MX31_PIN_USBH2_CLK, H2_PAD_CFG);
+	mxc_iomux_set_pad(MX31_PIN_USBH2_DIR, H2_PAD_CFG);
+	mxc_iomux_set_pad(MX31_PIN_USBH2_NXT, H2_PAD_CFG);
+	mxc_iomux_set_pad(MX31_PIN_USBH2_STP, H2_PAD_CFG);
+	mxc_iomux_set_pad(MX31_PIN_USBH2_DATA0, H2_PAD_CFG); /* USBH2_DATA0 */
+	mxc_iomux_set_pad(MX31_PIN_USBH2_DATA1, H2_PAD_CFG); /* USBH2_DATA1 */
+	mxc_iomux_set_pad(MX31_PIN_SRXD6, H2_PAD_CFG);	/* USBH2_DATA2 */
+	mxc_iomux_set_pad(MX31_PIN_STXD6, H2_PAD_CFG);	/* USBH2_DATA3 */
+	mxc_iomux_set_pad(MX31_PIN_SFS3, H2_PAD_CFG);	/* USBH2_DATA4 */
+	mxc_iomux_set_pad(MX31_PIN_SCK3, H2_PAD_CFG);	/* USBH2_DATA5 */
+	mxc_iomux_set_pad(MX31_PIN_SRXD3, H2_PAD_CFG);	/* USBH2_DATA6 */
+	mxc_iomux_set_pad(MX31_PIN_STXD3, H2_PAD_CFG);	/* USBH2_DATA7 */
+
+	tmp = readl(IO_ADDRESS(OTG_BASE_ADDR) + 0x600);
+	tmp &= ~((3 << 21) | 1);
+	tmp |= (1 << 5) | (1 << 16) | (1 << 19) | (1 << 20);
+	writel(tmp, IO_ADDRESS(OTG_BASE_ADDR) + 0x600);
+
+	tmp = readl(IO_ADDRESS(OTG_BASE_ADDR) + 0x584);
+	tmp &= ~(3 << 30);
+	tmp |= 2 << 30;
+	writel(tmp, IO_ADDRESS(OTG_BASE_ADDR) + 0x584);
+
+	mdelay(10);
+
+	return 0;
+}
+
+struct mxc_usbh_platform_data usbh2_pdata = {
+	.init = qong_usbh2_init,
+};
+
 /*
  * This structure defines the MX31 memory map.
  */
@@ -279,6 +336,7 @@ static void __init mxc_board_init(void)
 	qong_init_nor_mtd();
 	mxc_init_nand_mtd();
 	qong_init_fpga();
+	mxc_register_device(&mxc_usbh2, &usbh2_pdata);
 }
 
 static void __init qong_timer_init(void)
