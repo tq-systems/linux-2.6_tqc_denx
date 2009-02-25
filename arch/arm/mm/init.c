@@ -26,8 +26,11 @@
 
 #include "mm.h"
 
-static unsigned long phys_initrd_start __initdata = 0;
-static unsigned long phys_initrd_size __initdata = 0;
+unsigned long phys_initrd_start __initdata = 0;
+unsigned long phys_initrd_size __initdata = 0;
+#ifdef CONFIG_BLK_DEV_INITRD
+int initrd_in_ram;
+#endif
 
 static void __init early_initrd(char **p)
 {
@@ -186,7 +189,6 @@ static int __init check_initrd(struct meminfo *mi)
 		printk(KERN_ERR "INITRD: 0x%08lx+0x%08lx extends beyond "
 		       "physical memory - disabling initrd\n",
 		       phys_initrd_start, phys_initrd_size);
-		phys_initrd_start = phys_initrd_size = 0;
 	}
 #endif
 
@@ -342,6 +344,9 @@ void __init bootmem_init(struct meminfo *mi)
 	 * Locate which node contains the ramdisk image, if any.
 	 */
 	initrd_node = check_initrd(mi);
+#ifdef CONFIG_BLK_DEV_INITRD
+	initrd_in_ram = initrd_node >= 0;
+#endif
 
 	/*
 	 * Run through each node initialising the bootmem allocator.
@@ -548,8 +553,17 @@ static int keep_initrd;
 
 void free_initrd_mem(unsigned long start, unsigned long end)
 {
-	if (!keep_initrd)
-		free_area(start, end, "initrd");
+ 	if (!keep_initrd) {
+ 		if (initrd_in_ram) {
+			free_area(start, end, "initrd");
+ 		} else {
+ 			if (start == initrd_start && end == initrd_end) {
+ 				iounmap((void *)start);
+ 				initrd_start = initrd_end = 0;
+ 			} else
+ 				printk(KERN_ERR "Cannot unmap initrd !\n");
+ 		}
+ 	}
 }
 
 static int __init keepinitrd_setup(char *__unused)

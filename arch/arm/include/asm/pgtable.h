@@ -412,7 +412,27 @@ extern pgd_t swapper_pg_dir[PTRS_PER_PGD];
 #define io_remap_pfn_range(vma,from,pfn,size,prot) \
 		remap_pfn_range(vma, from, pfn, size, prot)
 
-#define pgtable_cache_init() do { } while (0)
+#ifdef CONFIG_BLK_DEV_INITRD
+#include <linux/initrd.h>
+#include <asm/io.h>
+extern unsigned long phys_initrd_start;
+extern unsigned long phys_initrd_size;
+extern int initrd_in_ram;
+#endif
+
+static inline void pgtable_cache_init(void)
+{
+#ifdef CONFIG_BLK_DEV_INITRD
+	if (phys_initrd_start != 0 && !initrd_in_ram) {
+		initrd_start = (unsigned long)ioremap(phys_initrd_start,
+				phys_initrd_size);
+		if (initrd_start == 0)
+			printk(KERN_ERR "Cannot map initrd !\n");
+		else
+			initrd_end = initrd_start + phys_initrd_size;
+	}
+#endif
+}
 
 #endif /* !__ASSEMBLY__ */
 
