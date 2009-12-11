@@ -542,17 +542,9 @@ config AVNET
 config UBOOT
 	bool "Support for U-Boot command line parameters"
 	help
-	  If you say Y here kernel will try to collect a command
+	  If you say Y here kernel will try to collect command
 	  line parameters from the initial u-boot stack.
 	default n
-
-config LARGE_ALLOCS
-	bool "Allow allocating large blocks (> 1MB) of memory"
-	help
-	  Allow the slab memory allocator to keep chains for very large
-	  memory sizes - upto 32MB. You may need this if your system has
-	  a lot of RAM, and you need to able to allocate very large
-	  contiguous chunks. If unsure, say N.
 
 config 4KSTACKS
 	bool "Use 4Kb for kernel stacks instead of 8Kb"

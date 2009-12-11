@@ -1,35 +1,27 @@
 /*
- * DESCRIPTION:
- *  Definitions of consts/structs to drive the Freescale MSCAN.
+ * Definitions of consts/structs to drive the Freescale MSCAN.
  *
- * AUTHOR:
- *  Andrey Volkov <avolkov@varma-el.com>
+ * Copyright (C) 2005-2006 Andrey Volkov <avolkov@varma-el.com>,
+ *                         Varma Electronics Oy
  *
- * COPYRIGHT:
- *  2004-2006, Varma Electronics Oy
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the version 2 of the GNU General Public License
+ * as published by the Free Software Foundation
  *
- * LICENCE:
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
  *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
- *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
 #ifndef __MSCAN_H__
 #define __MSCAN_H__
 
-#include <linux/autoconf.h>
-#include <asm/types.h>
+#include <linux/types.h>
 
 /* MSCAN control register 0 (CANCTL0) bits */
 #define MSCAN_RXFRM		0x80
@@ -50,7 +42,12 @@
 #define MSCAN_SLPAK		0x02
 #define MSCAN_INITAK		0x01
 
-#ifdef	CONFIG_PPC_MPC52xx
+/* Use the MPC5200 MSCAN variant? */
+#ifdef CONFIG_PPC
+#define MSCAN_FOR_MPC5200
+#endif
+
+#ifdef MSCAN_FOR_MPC5200
 #define MSCAN_CLKSRC_BUS	0
 #define MSCAN_CLKSRC_XTAL	MSCAN_CLKSRC
 #else
@@ -134,17 +131,22 @@
 /* MSCAN Miscellaneous Register (CANMISC) bits */
 #define MSCAN_BOHOLD		0x01
 
-#ifdef	CONFIG_PPC_MPC52xx
-#define _MSCAN_RESERVED_(n,num)	u8	_res##n[num]
+/* MSCAN Identifier Register (IDR) bits */
+#define MSCAN_SFF_RTR_SHIFT	4
+#define MSCAN_EFF_RTR_SHIFT	0
+#define MSCAN_EFF_FLAGS		0x18	/* IDE + SRR */
+
+#ifdef MSCAN_FOR_MPC5200
+#define _MSCAN_RESERVED_(n, num) u8 _res##n[num]
 #define _MSCAN_RESERVED_DSR_SIZE	2
 #else
-#define _MSCAN_RESERVED_(n,num)
+#define _MSCAN_RESERVED_(n, num)
 #define _MSCAN_RESERVED_DSR_SIZE	0
 #endif
 
 /* Structure of the hardware registers */
 struct mscan_regs {
-	/* (see doco S12MSCANV3/D)		  MPC5200    MSCAN */
+	/* (see doc S12MSCANV3/D)		  MPC5200    MSCAN */
 	u8 canctl0;				/* + 0x00     0x00 */
 	u8 canctl1;				/* + 0x01     0x01 */
 	_MSCAN_RESERVED_(1, 2);			/* + 0x02          */
@@ -164,7 +166,7 @@ struct mscan_regs {
 	u8 canidac;				/* + 0x15     0x0b */
 	u8 reserved;				/* + 0x16     0x0c */
 	_MSCAN_RESERVED_(6, 5);			/* + 0x17          */
-#ifndef CONFIG_PPC_MPC52xx
+#ifndef MSCAN_FOR_MPC5200
 	u8 canmisc;				/*            0x0d */
 #endif
 	u8 canrxerr;				/* + 0x1c     0x0e */
@@ -229,19 +231,66 @@ struct mscan_regs {
 #undef _MSCAN_RESERVED_
 #define MSCAN_REGION 	sizeof(struct mscan)
 
-#define MSCAN_WATCHDOG_TIMEOUT	((500*HZ)/1000)
+#define MSCAN_NORMAL_MODE	0
+#define MSCAN_SLEEP_MODE	MSCAN_SLPRQ
+#define MSCAN_INIT_MODE		(MSCAN_INITRQ | MSCAN_SLPRQ)
+#define MSCAN_POWEROFF_MODE	(MSCAN_CSWAI | MSCAN_SLPRQ)
+#define MSCAN_SET_MODE_RETRIES	255
+#define MSCAN_ECHO_SKB_MAX	3
 
-struct mscan_platform_data {
-	u8 clock_src;		/* MSCAN_CLKSRC_BUS or MSCAN_CLKSRC_XTAL */
-	u32 clock_frq;		/* can ref. clock, in Hz */
+#define BTR0_BRP_MASK		0x3f
+#define BTR0_SJW_SHIFT		6
+#define BTR0_SJW_MASK		(0x3 << BTR0_SJW_SHIFT)
+
+#define BTR1_TSEG1_MASK 	0xf
+#define BTR1_TSEG2_SHIFT	4
+#define BTR1_TSEG2_MASK 	(0x7 << BTR1_TSEG2_SHIFT)
+#define BTR1_SAM_SHIFT  	7
+
+#define BTR0_SET_BRP(brp)	(((brp) - 1) & BTR0_BRP_MASK)
+#define BTR0_SET_SJW(sjw)	((((sjw) - 1) << BTR0_SJW_SHIFT) & \
+				 BTR0_SJW_MASK)
+
+#define BTR1_SET_TSEG1(tseg1)	(((tseg1) - 1) &  BTR1_TSEG1_MASK)
+#define BTR1_SET_TSEG2(tseg2)	((((tseg2) - 1) << BTR1_TSEG2_SHIFT) & \
+				 BTR1_TSEG2_MASK)
+#define BTR1_SET_SAM(sam)	((sam) ? 1 << BTR1_SAM_SHIFT : 0)
+
+#define F_RX_PROGRESS	0
+#define F_TX_PROGRESS	1
+#define F_TX_WAIT_ALL	2
+
+#define TX_QUEUE_SIZE	3
+
+struct tx_queue_entry {
+	struct list_head list;
+	u8 mask;
+	u8 id;
 };
 
-struct net_device *alloc_mscandev(void);
-/* @clock_src:
-	1 = The MSCAN clock source is the onchip Bus Clock.
-	0 = The MSCAN clock source is the chip Oscillator Clock.
-*/
+struct mscan_priv {
+	struct can_priv can;	/* must be the first member */
+	long open_time;
+	unsigned long flags;
+	void __iomem *reg_base;	/* ioremap'ed address to registers */
+	u8 shadow_statflg;
+	u8 shadow_canrier;
+	u8 cur_pri;
+	u8 prev_buf_id;
+	u8 tx_active;
+
+	struct list_head tx_head;
+	struct tx_queue_entry tx_queue[TX_QUEUE_SIZE];
+	struct napi_struct napi;
+};
+
+extern struct net_device *alloc_mscandev(void);
+/*
+ * clock_src:
+ *	1 = The MSCAN clock source is the onchip Bus Clock.
+ *	0 = The MSCAN clock source is the chip Oscillator Clock.
+ */
 extern int register_mscandev(struct net_device *dev, int clock_src);
 extern void unregister_mscandev(struct net_device *dev);
 
-#endif				/* __MSCAN_H__ */
+#endif /* __MSCAN_H__ */
