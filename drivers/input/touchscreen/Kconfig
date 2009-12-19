@@ -460,7 +460,7 @@ config TOUCHSCREEN_MC13783
 	  If unsure, say N.
 
 	  To compile this driver as a module, choose M here: the
-	  module will be called mxc_ts.
+	  module will be called mc13783_ts.
 
 config TOUCHSCREEN_USB_EGALAX
 	default y

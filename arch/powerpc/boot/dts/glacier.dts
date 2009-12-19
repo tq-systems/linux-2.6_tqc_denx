@@ -308,6 +308,7 @@
 				max-frame-size = <9000>;
 				rx-fifo-size = <4096>;
 				tx-fifo-size = <2048>;
+				rx-fifo-size-gige = <16384>;
 				phy-mode = "rgmii";
 				phy-map = <0x00000000>;
 				rgmii-device = <&RGMII0>;
@@ -337,6 +338,7 @@
 				max-frame-size = <9000>;
 				rx-fifo-size = <4096>;
 				tx-fifo-size = <2048>;
+				rx-fifo-size-gige = <16384>;
 				phy-mode = "rgmii";
 				phy-map = <0x00000000>;
 				rgmii-device = <&RGMII0>;
@@ -367,6 +369,8 @@
 				max-frame-size = <9000>;
 				rx-fifo-size = <4096>;
 				tx-fifo-size = <2048>;
+				rx-fifo-size-gige = <16384>;
+				tx-fifo-size-gige = <16384>; /* emac2&3 only */
 				phy-mode = "rgmii";
 				phy-map = <0x00000000>;
 				rgmii-device = <&RGMII1>;
@@ -395,6 +399,8 @@
 				max-frame-size = <9000>;
 				rx-fifo-size = <4096>;
 				tx-fifo-size = <2048>;
+				rx-fifo-size-gige = <16384>;
+				tx-fifo-size-gige = <16384>; /* emac2&3 only */
 				phy-mode = "rgmii";
 				phy-map = <0x00000000>;
 				rgmii-device = <&RGMII1>;
