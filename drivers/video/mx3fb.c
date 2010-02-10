@@ -333,8 +333,11 @@ static void sdc_enable_channel(struct mx3fb_info *mx3_fbi)
 	unsigned long flags;
 	dma_cookie_t cookie;
 
-	dev_dbg(mx3fb->dev, "mx3fbi %p, desc %p, sg %p\n", mx3_fbi,
-		to_tx_desc(mx3_fbi->txd), to_tx_desc(mx3_fbi->txd)->sg);
+	if (mx3_fbi->txd)
+		dev_dbg(mx3fb->dev, "mx3fbi %p, desc %p, sg %p\n", mx3_fbi,
+			to_tx_desc(mx3_fbi->txd), to_tx_desc(mx3_fbi->txd)->sg);
+	else
+		dev_dbg(mx3fb->dev, "mx3fbi %p, txd = NULL\n", mx3_fbi);
 
 	/* This enables the channel */
 	if (mx3_fbi->cookie < 0) {
@@ -655,6 +658,7 @@ static int sdc_set_global_alpha(struct mx3fb_data *mx3fb, bool enable, uint8_t a
 
 static void sdc_set_brightness(struct mx3fb_data *mx3fb, uint8_t value)
 {
+	dev_dbg(mx3fb->dev, "%s: value = %d\n", __func__, value);
 	/* This might be board-specific */
 	u32 reg = mx3fb->pwm_clk_src | SDC_PWM_CC_EN | value << 16;
 
