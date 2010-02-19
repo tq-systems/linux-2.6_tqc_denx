@@ -96,34 +96,36 @@ module_param(write_timeout, uint, 0);
 MODULE_PARM_DESC(write_timeout, "Time (in ms) to try writes (default 25)");
 
 #define AT24_SIZE_BYTELEN 5
+#define AT24_PAGE_SIZE_BYTELEN 4
 #define AT24_SIZE_FLAGS 8
 
 #define AT24_BITMASK(x) (BIT(x) - 1)
 
 /* create non-zero magic value for given eeprom parameters */
-#define AT24_DEVICE_MAGIC(_len, _flags) 		\
-	((1 << AT24_SIZE_FLAGS | (_flags)) 		\
-	    << AT24_SIZE_BYTELEN | ilog2(_len))
+#define AT24_DEVICE_MAGIC(_len, _page_size, _flags) 		\
+	(((1 << AT24_SIZE_FLAGS | (_flags)) << (AT24_SIZE_BYTELEN + AT24_PAGE_SIZE_BYTELEN)) | \
+	(ilog2(_page_size) << AT24_SIZE_BYTELEN) | \
+	ilog2(_len))
 
 static const struct i2c_device_id at24_ids[] = {
 	/* needs 8 addresses as A0-A2 are ignored */
-	{ "24c00", AT24_DEVICE_MAGIC(128 / 8, AT24_FLAG_TAKE8ADDR) },
+	{ "24c00", AT24_DEVICE_MAGIC(128 / 8, 1, AT24_FLAG_TAKE8ADDR) },
 	/* old variants can't be handled with this generic entry! */
-	{ "24c01", AT24_DEVICE_MAGIC(1024 / 8, 0) },
-	{ "24c02", AT24_DEVICE_MAGIC(2048 / 8, 0) },
+	{ "24c01", AT24_DEVICE_MAGIC(1024 / 8, 1, 0) },
+	{ "24c02", AT24_DEVICE_MAGIC(2048 / 8, 1, 0) },
 	/* spd is a 24c02 in memory DIMMs */
-	{ "spd", AT24_DEVICE_MAGIC(2048 / 8,
+	{ "spd", AT24_DEVICE_MAGIC(2048 / 8, 1,
 		AT24_FLAG_READONLY | AT24_FLAG_IRUGO) },
-	{ "24c04", AT24_DEVICE_MAGIC(4096 / 8, 0) },
+	{ "24c04", AT24_DEVICE_MAGIC(4096 / 8, 16, 0) },
 	/* 24rf08 quirk is handled at i2c-core */
-	{ "24c08", AT24_DEVICE_MAGIC(8192 / 8, 0) },
-	{ "24c16", AT24_DEVICE_MAGIC(16384 / 8, 0) },
-	{ "24c32", AT24_DEVICE_MAGIC(32768 / 8, AT24_FLAG_ADDR16) },
-	{ "24c64", AT24_DEVICE_MAGIC(65536 / 8, AT24_FLAG_ADDR16) },
-	{ "24c128", AT24_DEVICE_MAGIC(131072 / 8, AT24_FLAG_ADDR16) },
-	{ "24c256", AT24_DEVICE_MAGIC(262144 / 8, AT24_FLAG_ADDR16) },
-	{ "24c512", AT24_DEVICE_MAGIC(524288 / 8, AT24_FLAG_ADDR16) },
-	{ "24c1024", AT24_DEVICE_MAGIC(1048576 / 8, AT24_FLAG_ADDR16) },
+	{ "24c08", AT24_DEVICE_MAGIC(8192 / 8, 16, 0) },
+	{ "24c16", AT24_DEVICE_MAGIC(16384 / 8, 16, 0) },
+	{ "24c32", AT24_DEVICE_MAGIC(32768 / 8, 32, AT24_FLAG_ADDR16) },
+	{ "24c64", AT24_DEVICE_MAGIC(65536 / 8, 32, AT24_FLAG_ADDR16) },
+	{ "24c128", AT24_DEVICE_MAGIC(131072 / 8, 64, AT24_FLAG_ADDR16) },
+	{ "24c256", AT24_DEVICE_MAGIC(262144 / 8, 64, AT24_FLAG_ADDR16) },
+	{ "24c512", AT24_DEVICE_MAGIC(524288 / 8, 128, AT24_FLAG_ADDR16) },
+	{ "24c1024", AT24_DEVICE_MAGIC(1048576 / 8, 256, AT24_FLAG_ADDR16) },
 	{ "at24", 0 },
 	{ /* END OF LIST */ }
 };
@@ -436,13 +438,18 @@ static int at24_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		magic = id->driver_data;
 		chip.byte_len = BIT(magic & AT24_BITMASK(AT24_SIZE_BYTELEN));
 		magic >>= AT24_SIZE_BYTELEN;
+		chip.page_size = BIT(magic & AT24_BITMASK(AT24_PAGE_SIZE_BYTELEN));
+		magic >>= AT24_PAGE_SIZE_BYTELEN;
 		chip.flags = magic & AT24_BITMASK(AT24_SIZE_FLAGS);
 		/*
+		 * If page size is not given in the magic wird, take page size 1.
 		 * This is slow, but we can't know all eeproms, so we better
 		 * play safe. Specifying custom eeprom-types via platform_data
 		 * is recommended anyhow.
 		 */
-		chip.page_size = 1;
+		if (chip.page_size == 0) {
+			chip.page_size = 1;
+		}
 
 		chip.setup = NULL;
 		chip.context = NULL;
