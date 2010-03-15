@@ -177,7 +177,7 @@ cuboot*)
     *-mpc824*)
         platformo=$object/cuboot-824x.o
         ;;
-    *-mpc83*|*-asp834x*)
+    *-mpc83*|*-asp834x*|*-tqm8360*)
         platformo=$object/cuboot-83xx.o
         ;;
     *-tqm8541|*-mpc8560*|*-tqm8560|*-tqm8555|*-ksi8560*)

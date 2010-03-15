@@ -88,6 +88,14 @@ config SBC834x
 	help
 	  This option enables support for the Wind River SBC834x board.
 
+config TQM8360
+	bool "TQ Components TQM8360"
+	select DEFAULT_UIMAGE
+	select QUICC_ENGINE
+	select FSL_LBC
+	help
+	  This option enables support for the TQ Components TQM8360 board.
+
 config ASP834x
 	bool "Analogue & Micro ASP 834x"
 	select PPC_MPC834x
@@ -102,7 +110,6 @@ config KMETER1
 	select QUICC_ENGINE
 	help
 	  This enables support for the Keymile KMETER1 board.
-
 
 endif
 
